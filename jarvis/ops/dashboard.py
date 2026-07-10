@@ -512,7 +512,7 @@ function archSVG(d){
   const flow = (d2,cls="",id="") => `<path class="flow ${cls}" ${id?`id="${id}"`:""} d="${d2}"/>`;
   const flowLbl = (x,y,t,anchor="start") => `<text class="fl" x="${x}" y="${y}" text-anchor="${anchor}">${t}</text>`;
 
-  return `<div style="overflow-x:auto"><svg viewBox="0 0 1044 700" class="arch" role="img">
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 1044 664" class="arch" role="img">
     <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 z" class="head"/></marker></defs>
 
@@ -537,10 +537,10 @@ function archSVG(d){
     <!-- reply loops back to the gateway (next turn), arced well clear of the loop -->
     <path class="flow" id="e-reply-gw" d="M610 84 C610 28 360 28 96 66" marker-end="url(#arr)"/>
     ${flowLbl(376,24,"next turn")}
-    <!-- every turn is saved for consolidation: down the right inner lane,
+    <!-- every turn is saved for consolidation: down a clear right lane,
          then left into the consolidation box -->
-    <path class="flow dash" id="e-reply-save" d="M652 136 C666 150 666 200 666 600 L648 600" marker-end="url(#arr)"/>
-    ${flowLbl(662,340,"save chats",'end')}
+    <path class="flow dash" id="e-reply-save" d="M650 136 C660 150 660 200 660 600 L614 600" marker-end="url(#arr)"/>
+    ${flowLbl(668,214,"save chats",'start')}
 
     <!-- retrieval gate feeding working memory (the hero) -->
     <path class="gate" id="n-gate" d="M264 250 L340 296 L264 342 L188 296 Z"/>
@@ -550,17 +550,17 @@ function archSVG(d){
 
     <!-- MEMORY: grouped section with a direct link from the gate to each pillar -->
     ${lbl(40,404,"MEMORY — three pillars")}
-    <rect class="memgroup" x="28" y="414" width="632" height="128" rx="12"/>
-    ${flow("M150 452 L246 336","dash","e-gate-proc")}
-    ${flow("M344 452 L272 344","dash","e-gate-sem")}
-    ${flow("M556 452 L286 338","dash","e-gate-epi")}
-    ${flowLbl(360,392,"the gate reads all three",'middle')}
-    ${box(44,452,212,72,"Procedural","how to act · SKILL.md · "+d.skills.length+" skill(s)","memory","","procedural")}
-    ${box(268,452,212,72,"Semantic · FTS5","durable facts · "+d.facts.length+" facts","memory","","semantic")}
-    ${box(492,452,152,72,"Episodic",d.episodes.length+" episodes","memory","","episodic")}
+    <rect class="memgroup" x="28" y="414" width="600" height="128" rx="12"/>
+    ${flow("M148 452 L246 336","dash","e-gate-proc")}
+    ${flow("M340 452 L272 344","dash","e-gate-sem")}
+    ${flow("M542 452 L286 338","dash","e-gate-epi")}
+    ${flowLbl(356,392,"the gate reads all three",'middle')}
+    ${box(44,452,208,72,"Procedural","how to act · SKILL.md · "+d.skills.length+" skill(s)","memory","","procedural")}
+    ${box(264,452,204,72,"Semantic · FTS5","durable facts · "+d.facts.length+" facts","memory","","semantic")}
+    ${box(480,452,132,72,"Episodic",d.episodes.length+" episodes","memory","","episodic")}
 
     <!-- consolidation writes back into memory -->
-    ${box(44,576,600,52,"Consolidation · every "+d.consolidate_every+" exchanges",d.chat_pending+"/"+d.consolidate_every*2+" queued → distilled into facts","memory","","consolidation")}
+    ${box(44,576,568,52,"Consolidation · every "+d.consolidate_every+" exchanges",d.chat_pending+"/"+d.consolidate_every*2+" queued → distilled into facts","memory","","consolidation")}
     ${flow("M340 576 L340 528","","e-consol-sem")}${flowLbl(350,560,"distill")}
 
     <!-- LLM OPS: a SEPARATE system (offline). Detached with a clear gap so it
@@ -578,10 +578,10 @@ function archSVG(d){
     ${box(756,206,252,50,"Release gate",d.eval_report?"det "+d.eval_report.deterministic+" · judge "+d.eval_report.judge:"run make gate","ops")}
     ${flow("M882 256 L882 272")}
     ${box(756,272,252,50,"Release","new prompt · model · config","ops")}
-    <!-- feedback: release improves the harness — the outer loop closes,
-         routed under everything in open canvas so it crosses nothing -->
-    <path class="flow dash" d="M882 322 V672 H24 V100 H30" marker-end="url(#arr)"/>
-    ${flowLbl(430,666,"improved prompt + config",'middle')}
+    <!-- feedback: Release improves the Harness — a short arrow across the gap,
+         so the outer loop closes without a long wrap crowding the margins -->
+    <path class="flow dash" d="M756 300 C716 312 700 350 676 356" marker-end="url(#arr)"/>
+    ${flowLbl(598,344,"improved prompt + config",'end')}
   </svg></div>`;
 }
 
