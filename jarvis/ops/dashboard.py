@@ -178,6 +178,26 @@ def collect() -> dict:
     outbox = [{"name": p.name, "text": p.read_text()[:400]}
               for p in sorted((home / "outbox").glob("*.txt"), reverse=True)[:20]]
 
+    # --- state.db introspection: the actual SQLite tables, so the persistence
+    # layer is visible (not just its contents). Table names are hard-coded, so
+    # the f-string SQL is safe.
+    def table_info(name):
+        cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({name})").fetchall()]
+        count = conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+        sample = [dict(r) for r in conn.execute(f"SELECT * FROM {name} ORDER BY rowid DESC LIMIT 6").fetchall()]
+        return {"name": name, "columns": cols, "count": count, "sample": sample}
+
+    db_path = home / "state.db"
+    all_tables = [r["name"] for r in
+                  conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()]
+    db_info = {
+        "path": str(db_path.resolve()),
+        "size": db_path.stat().st_size if db_path.exists() else 0,
+        "tables": [table_info(n) for n in ("calendar_events", "facts", "episodes", "chat_log")],
+        "fts": [t for t in all_tables if t.endswith("_fts")],
+        "all_tables": all_tables,
+    }
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "home": str(home.resolve()),
@@ -207,6 +227,7 @@ def collect() -> dict:
         "outbox": outbox,
         "skills": skills,
         "eval_report": eval_report,
+        "db": db_info,
     }
 
 
@@ -353,6 +374,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .msg .mtext{font-size:13.5px;white-space:pre-wrap;color:var(--ink)}
   .chip-c{display:inline-block;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:99px;
           background:var(--good-soft);color:var(--good);text-transform:none;letter-spacing:0;vertical-align:middle}
+  .cols{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+  .col-chip{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:5px;
+            background:var(--accent-soft);color:var(--accent);border:1px solid var(--line)}
+  .dbcell{font-family:var(--mono);font-size:11.5px;color:var(--ink2);max-width:240px;overflow:hidden;text-overflow:ellipsis}
   .watchhead{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink2);font-weight:600;margin-bottom:8px}
   .chat-arch{max-width:600px;margin:0 auto 16px;border:1px solid var(--line);border-radius:12px;
              padding:8px;background:var(--panel);position:sticky;top:6px;z-index:3}
@@ -390,6 +415,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a href="#loop" data-v="loop">Loop <span class="n" id="n-loop"></span></a>
   <a href="#memory" data-v="memory">Memory <span class="n" id="n-mem"></span></a>
   <a href="#tools" data-v="tools">Tools <span class="n" id="n-tools"></span></a>
+  <a href="#database" data-v="database">state.db <span class="n" id="n-db"></span></a>
   <a href="#ops" data-v="ops">Ops <span class="n" id="n-ops"></span></a>
 </nav>
 <main>
@@ -641,6 +667,26 @@ const VIEWS = {
                          : `<div class="card empty">no drafted messages</div>`;
     return h;
   },
+  database(d){
+    // The persistence layer itself — one SQLite file, real tables, FTS5 index.
+    const db = d.db || {tables:[], all_tables:[], fts:[], size:0, path:""};
+    const kb = (db.size/1024).toFixed(1);
+    let h = `<div class="card">
+      <div class="u" style="font-family:var(--mono);font-size:12.5px;word-break:break-all">${esc(db.path)}</div>
+      <div class="meta">${kb} KB on disk · SQLite + FTS5 · everything Jarvis remembers is in this one file — open it yourself: <code>sqlite3 .jarvis/state.db</code></div>
+    </div>`;
+    db.tables.forEach(t => {
+      h += `<h2>${esc(t.name)} <span style="color:var(--ink3);font-weight:400;text-transform:none;letter-spacing:0">· ${t.count} row${t.count===1?"":"s"}</span></h2>`;
+      h += `<div class="cols">${t.columns.map(c=>`<span class="col-chip">${esc(c)}</span>`).join("")}</div>`;
+      h += t.sample.length
+        ? table(t.columns, t.sample.map(r => `<tr>${t.columns.map(c=>`<td class="dbcell">${esc(String(r[c]??"").slice(0,80))}</td>`).join("")}</tr>`))
+        : `<div class="card empty">empty</div>`;
+    });
+    h += `<h2>FTS5 — the keyword index <span style="color:var(--ink3);font-weight:400;text-transform:none;letter-spacing:0">· ${db.fts.join(", ")}</span></h2>`;
+    h += `<div class="card">The <code>*_fts</code> virtual tables (plus their shadow tables <code>*_fts_data</code>, <code>*_fts_idx</code>, …) are what make memory searchable by keyword — no embeddings, no vector database. This is the Hermes-style "keyword top-k" the retrieval gate queries.
+      <div class="meta" style="margin-top:8px">all ${db.all_tables.length} tables in the file: ${db.all_tables.map(t=>`<code>${esc(t)}</code>`).join(" ")}</div></div>`;
+    return h;
+  },
   ops(d){
     const s = d.stats;
     let h = `<div class="tiles">${[
@@ -724,7 +770,7 @@ async function pollEvents(){
 }
 
 let activeView = null;
-const TITLES = {chat:"Chat & watch", ops:"LLM Ops"};
+const TITLES = {chat:"Chat & watch", ops:"LLM Ops", database:"state.db — the persistence layer"};
 function render(){
   if (!D) return;
   const v = (location.hash||"#chat").slice(1);
@@ -747,6 +793,7 @@ function render(){
   document.getElementById("n-loop").textContent = D.stats.turns;
   document.getElementById("n-mem").textContent = D.facts.length + D.episodes.length;
   document.getElementById("n-tools").textContent = D.calendar.length + D.outbox.length;
+  document.getElementById("n-db").textContent = (D.db && D.db.all_tables.length) || "";
   document.getElementById("n-ops").textContent = D.stats.tool_errors || (D.eval_report ? "" : "!");
 }
 let lastFetch = Date.now();
