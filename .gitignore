@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+state.db
+traces/
+*.ics
+.DS_Store
+dist/
+.pytest_cache/
+.ruff_cache/
