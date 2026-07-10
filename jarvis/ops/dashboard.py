@@ -24,6 +24,31 @@ from jarvis.db import connect
 
 PORT = 7777
 
+# Rough $/million tokens (in, out) for a dollar ESTIMATE — the number humans
+# actually feel. Keyed by provider; deliberately approximate and labelled "est".
+PRICING = {
+    "anthropic": (3.0, 15.0), "openai": (2.5, 15.0), "gemini": (0.3, 2.5),
+    "kimi": (0.6, 2.5), "glm": (0.6, 2.2),
+}
+
+
+def _parse_ts(ts: str):
+    try:
+        return datetime.fromisoformat(ts)
+    except (ValueError, TypeError):
+        return None
+
+
+def _tool_status(output: str) -> str:
+    """Classify a tool result for the UI: ok / warn / error — from the output
+    string alone (tools already report honestly, so trust their words)."""
+    low = (output or "").lower()
+    if "failed" in low or "timed out" in low or low.startswith("error"):
+        return "error"
+    if "already exists" in low or "not synced" in low or "skipped" in low:
+        return "warn"
+    return "ok"
+
 
 def collect() -> dict:
     """Everything the page shows, in one JSON blob."""
@@ -68,7 +93,28 @@ def collect() -> dict:
                 current = None
     if current is not None:  # a turn that never ended = the smoking gun for hangs
         current["reply"] = "TURN NEVER FINISHED — check for a hang after this point"
+        current["unfinished"] = True
         turns.append(current)
+
+    # --- derive per-turn latency + dollar cost (the ops numbers humans feel)
+    price_in, price_out = PRICING.get(settings.provider, (3.0, 15.0))
+    for t in turns:
+        start, end = _parse_ts(t["ts"]), None
+        last = t["llm_calls"][-1]["ts"] if t["llm_calls"] else None
+        end = _parse_ts(last)
+        t["latency_ms"] = int((end - start).total_seconds() * 1000) if start and end else None
+        tin = sum(c.get("usage", {}).get("in", 0) for c in t["llm_calls"])
+        tout = sum(c.get("usage", {}).get("out", 0) for c in t["llm_calls"])
+        t["cost"] = tin / 1e6 * price_in + tout / 1e6 * price_out
+        for x in t["tools"]:
+            x["status"] = _tool_status(x.get("output", ""))
+            x["summary"] = (x.get("output", "") or "").split(". ")[0][:120]
+
+    latencies = sorted(t["latency_ms"] for t in turns if t["latency_ms"] is not None)
+    total_cost = sum(t["cost"] for t in turns)
+
+    def pct(p: float) -> int:
+        return latencies[min(len(latencies) - 1, int(len(latencies) * p))] if latencies else 0
 
     from jarvis.memory.procedural.loader import SkillLoader
     from jarvis.memory import REPO_SKILLS
@@ -92,10 +138,14 @@ def collect() -> dict:
         "stats": {
             "turns": len(turns),
             "tool_calls": sum(len(t["tools"]) for t in turns),
+            "tool_errors": sum(1 for t in turns for x in t["tools"] if x["status"] == "error"),
             "gate_skips": sum(1 for t in turns if t["gate"] and t["gate"].get("decision") == "skip"),
             "gate_retrieves": sum(1 for t in turns if t["gate"] and t["gate"].get("decision") == "retrieve"),
             "tokens_in": sum(c.get("usage", {}).get("in", 0) for t in turns for c in t["llm_calls"]),
             "tokens_out": sum(c.get("usage", {}).get("out", 0) for t in turns for c in t["llm_calls"]),
+            "cost": round(total_cost, 4),
+            "latency_avg": int(sum(latencies) / len(latencies)) if latencies else 0,
+            "latency_p95": pct(0.95),
             "trace_files": len(trace_files),
         },
         "turns": turns[::-1][:50],
@@ -174,8 +224,24 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .u{font-weight:550}
   .r{color:var(--ink2);white-space:pre-wrap;margin-top:6px}
   .meta{color:var(--ink3);font-size:11.5px;margin-top:8px;font-variant-numeric:tabular-nums}
-  .tool{font-family:var(--mono);font-size:11.5px;background:var(--bg);border:1px solid var(--line);
-        border-radius:6px;padding:6px 9px;margin-top:8px;white-space:pre-wrap;word-break:break-all;color:var(--ink2)}
+  .tool{border:1px solid var(--line);border-radius:7px;padding:8px 10px;margin-top:8px;background:var(--bg)}
+  .tool.error{border-color:var(--bad);background:var(--bad-soft)}
+  .tool.warn{border-color:var(--line2)}
+  .tool-head{display:flex;align-items:center;gap:8px;font-size:12.5px}
+  .dot{width:7px;height:7px;border-radius:99px;flex-shrink:0;background:var(--good)}
+  .dot.error{background:var(--bad)} .dot.warn{background:#c8951f}
+  .tool code{border:none;background:transparent;padding:0;color:var(--ink)}
+  .tool details{margin-top:6px}
+  .tool summary{font-size:11px;color:var(--ink3);cursor:pointer;list-style:none}
+  .tool pre{font-family:var(--mono);font-size:11px;color:var(--ink2);white-space:pre-wrap;
+            word-break:break-all;margin-top:6px;max-height:180px;overflow:auto}
+  .live{display:inline-flex;align-items:center;gap:6px}
+  .live .dot{animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .splitbar{display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid var(--line);margin-top:2px}
+  .splitbar div{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;min-width:2px}
+  .seg-skip{background:var(--accent)} .seg-ret{background:#c8951f}
+  .tile b.money{color:var(--good)}
   table{width:100%;border-collapse:collapse;font-size:13px}
   td,th{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
   tr:last-child td{border-bottom:none}
@@ -202,31 +268,54 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 const esc = s => (s??"").toString().replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 let D = null;
 
+const money = n => "$" + (n < 0.01 ? n.toFixed(4) : n.toFixed(2));
+const secs = ms => ms==null ? "—" : (ms/1000).toFixed(1)+"s";
+
 const gateBadge = g => !g ? "" :
   `<span class="badge ${g.decision==="retrieve"?"retrieve":""}">gate · ${esc(g.decision)}</span><span class="meta" style="margin:0">${esc(g.reason||"")}</span>`;
+
+// A tool call renders as a status row (dot + one-line summary); the raw output
+// hides behind a disclosure so an ugly osascript error never floods the page.
+const toolRow = x => `<div class="tool ${x.status}">
+  <div class="tool-head"><span class="dot ${x.status}"></span><code>${esc(x.tool)}</code>
+    <span style="color:var(--ink2)">${esc(x.summary)}</span></div>
+  <details><summary>args &amp; raw output</summary>
+    <pre>${esc(x.tool)}(${esc(JSON.stringify(x.args,null,1))})\\n\\n${esc(x.output)}</pre>
+  </details>
+</div>`;
 
 const turnCard = t => `<div class="card">
   <div class="u">${esc(t.user_message)}</div>
   <div class="meta" style="margin-top:4px">${gateBadge(t.gate)}</div>
-  ${(t.tools||[]).map(x=>`<div class="tool">${esc(x.tool)}(${esc(JSON.stringify(x.args))})\\n→ ${esc(x.output)}</div>`).join("")}
+  ${(t.tools||[]).map(toolRow).join("")}
   <div class="r">${esc(t.reply)}</div>
-  <div class="meta">${esc((t.ts||"").replace("T"," ").slice(0,19))} · ${t.iterations??"?"} iteration(s) · ${(t.llm_calls||[]).map(c=>`${c.usage?.in??0}→${c.usage?.out??0} tok`).join(", ")}${t.consolidation?` · consolidated ${t.consolidation.new_facts} fact(s)`:""}</div>
+  <div class="meta">${esc((t.ts||"").replace("T"," ").slice(0,19))} · ${secs(t.latency_ms)} · ${t.iterations??"?"} iter · ${money(t.cost||0)}${t.consolidation?` · consolidated ${t.consolidation.new_facts} fact(s)`:""}</div>
 </div>`;
 
 const table = (heads, rows) => rows.length
   ? `<div class="card" style="padding:4px 8px"><table><tr>${heads.map(h=>`<th>${h}</th>`).join("")}</tr>${rows.join("")}</table></div>`
   : `<div class="card empty">nothing here yet</div>`;
 
+const gateSplit = s => {
+  const tot = s.gate_skips + s.gate_retrieves || 1;
+  const skipPct = Math.round(s.gate_skips/tot*100), retPct = 100-skipPct;
+  return `<div class="splitbar">
+    <div class="seg-skip" style="width:${skipPct}%">${s.gate_skips} skipped</div>
+    <div class="seg-ret" style="width:${retPct}%">${s.gate_retrieves} retrieved</div>
+  </div><div class="meta" style="margin-top:6px">the retrieval gate skipped memory on ${skipPct}% of turns — that's latency and bias saved</div>`;
+};
+
 const VIEWS = {
   overview(d){
     const s = d.stats;
-    return `<div class="tiles">${[
-        [s.turns,"turns"],[s.tool_calls,"tool calls"],
-        [`${s.gate_skips} / ${s.gate_retrieves}`,"gate skip / retrieve"],
-        [s.tokens_in.toLocaleString(),"tokens in"],[s.tokens_out.toLocaleString(),"tokens out"],
-        [d.facts.length,"facts"],[d.calendar.length,"events"]
-      ].map(([v,l])=>`<div class="tile"><b>${v}</b><span>${l}</span></div>`).join("")}</div>
-    <h2>Architecture — click any box</h2>
+    const tiles = [
+        [money(s.cost),"spent (est)","money"],[secs(s.latency_avg),"avg turn",""],
+        [s.turns,"turns",""],[s.tool_calls,"tool calls",""],
+        [d.facts.length,"facts",""],[d.calendar.length,"events",""],
+      ].map(([v,l,c])=>`<div class="tile"><b class="${c}">${v}</b><span>${l}</span></div>`).join("");
+    return `<div class="tiles">${tiles}</div>
+    <h2>Retrieval gate — the hero decision</h2>${gateSplit(s)}
+    <h2 style="margin-top:26px">Architecture — click any box</h2>
     <div class="map">
       <div class="lane"><div class="lane-label">One turn</div>
         <div class="box" onclick="location.hash='ops'"><b>Gateway</b><span>cli · voice · telegram</span></div>
@@ -280,19 +369,34 @@ const VIEWS = {
     return h;
   },
   ops(d){
-    let h = `<h2>Release gate</h2>`;
+    const s = d.stats;
+    let h = `<div class="tiles">${[
+        [money(s.cost),"spent (est)","money"],[s.tokens_in.toLocaleString(),"tokens in",""],
+        [s.tokens_out.toLocaleString(),"tokens out",""],[secs(s.latency_avg),"avg turn",""],
+        [secs(s.latency_p95),"p95 turn",""],[`${s.tool_errors}`,"tool errors",s.tool_errors?"":""],
+      ].map(([v,l,c])=>`<div class="tile"><b class="${c}">${v}</b><span>${l}</span></div>`).join("")}</div>`;
+
+    h += `<h2>Retrieval gate</h2>${gateSplit(s)}`;
+
+    h += `<h2>Release gate</h2>`;
     h += d.eval_report ? `<div class="card">
         <span class="pill ${d.eval_report.deterministic}">deterministic · ${d.eval_report.deterministic}</span>
         <span class="pill ${d.eval_report.judge==="pass"?"pass":d.eval_report.judge==="fail"?"fail":"skip"}" style="margin-left:8px">llm-judge · ${d.eval_report.judge}</span>
         <div class="meta">last run ${esc(d.eval_report.ran_at)} — refresh with <code>make gate</code></div></div>`
       : `<div class="card empty">no eval report yet — run <code>make gate</code></div>`;
-    h += `<h2>Tracing</h2><div class="card">${d.stats.trace_files} trace file(s) in <code>traces/</code>.
-          Every turn is recorded as JSONL. For span waterfalls: <code>make trace</code> +
-          <code>OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</code>.</div>`;
+
+    h += `<h2>Slowest turns</h2>`;
+    const slow = [...d.turns].filter(t=>t.latency_ms!=null).sort((a,b)=>b.latency_ms-a.latency_ms).slice(0,6);
+    h += table(["turn","latency","cost","tools"], slow.map(t =>
+      `<tr><td>${esc((t.user_message||"").slice(0,48))}</td><td class="meta">${secs(t.latency_ms)}</td><td class="meta">${money(t.cost||0)}</td><td class="meta">${(t.tools||[]).map(x=>x.tool).join(", ")||"—"}</td></tr>`));
+
+    h += `<h2>Tracing</h2><div class="card">${s.trace_files} trace file(s) in <code>traces/</code> — every turn as JSONL.
+          Span waterfalls: <code>make trace</code> + <code>OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</code>.</div>`;
+
     if (d.wake_scans.length){
       h += `<h2>Voice — wake near-misses</h2>`;
       h += table(["heard","when"], d.wake_scans.map(w =>
-        `<tr><td>${esc(w.heard)}</td><td class="meta">${esc(w.ts)}</td></tr>`));
+        `<tr><td>${esc(w.heard)}</td><td class="meta">${esc((w.ts||"").replace("T"," ").slice(0,19))}</td></tr>`));
     }
     return h;
   },
@@ -306,15 +410,24 @@ function render(){
   document.getElementById("title").textContent = view==="ops" ? "LLM Ops" : view[0].toUpperCase()+view.slice(1);
   document.getElementById("view").innerHTML = VIEWS[view](D);
   document.getElementById("model").textContent = `${D.provider} · ${D.model}`;
-  document.getElementById("sub").textContent = `${D.home} · refreshed ${D.generated_at}`;
   document.getElementById("n-loop").textContent = D.stats.turns;
   document.getElementById("n-mem").textContent = D.facts.length + D.episodes.length;
   document.getElementById("n-tools").textContent = D.calendar.length + D.outbox.length;
-  document.getElementById("n-ops").textContent = D.eval_report ? "" : "!";
+  document.getElementById("n-ops").textContent = D.stats.tool_errors || (D.eval_report ? "" : "!");
 }
-async function refresh(){ D = await (await fetch("/api/data")).json(); render(); }
+let lastFetch = Date.now();
+function tickLive(){
+  if (!D) return;
+  const ago = Math.round((Date.now()-lastFetch)/1000);
+  document.getElementById("sub").innerHTML =
+    `<span class="live"><span class="dot"></span>live</span> · updated ${ago}s ago · ${esc(D.home)}`;
+}
+async function refresh(){
+  try { D = await (await fetch("/api/data")).json(); lastFetch = Date.now(); render(); tickLive(); }
+  catch(e){ /* server restarting — keep showing last data */ }
+}
 window.addEventListener("hashchange", render);
-refresh(); setInterval(refresh, 5000);
+refresh(); setInterval(refresh, 5000); setInterval(tickLive, 1000);
 </script></body></html>"""
 
 
