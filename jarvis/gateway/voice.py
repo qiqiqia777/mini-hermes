@@ -86,6 +86,88 @@ class Mouth:
             print("(no TTS engine on this platform — set JARVIS_TTS=kokoro)")
 
 
+def matches_wake(text: str, wake_word: str) -> bool:
+    """Does a transcript contain the (customizable) wake word?
+
+    Fuzzy on purpose: Whisper hears "waku waku" as "wakuwaku", "Waku, waku!"
+    or "walku waku" depending on your mic and accent. We normalize, check
+    substring both spaced and unspaced, then fall back to a sliding-window
+    similarity ratio. Pure function → deterministic eval covers it.
+    """
+    import difflib
+    import re
+
+    def norm(s: str) -> str:
+        return re.sub(r"[^a-z0-9一-鿿 ]", "", s.lower()).strip()
+
+    heard, wake = norm(text), norm(wake_word)
+    if not heard or not wake:
+        return False
+    if wake in heard or wake.replace(" ", "") in heard.replace(" ", ""):
+        return True
+    words, n = heard.split(), len(wake.split())
+    return any(
+        difflib.SequenceMatcher(None, " ".join(words[i : i + n]), wake).ratio() >= 0.75
+        for i in range(max(0, len(words) - n + 1))
+    )
+
+
+def record_command(max_seconds: float = 15.0, silence_after: float = 1.2):
+    """After the wake word: record until the speaker goes quiet."""
+    import numpy as np
+    import sounddevice as sd
+
+    block = SAMPLE_RATE // 10  # 100ms blocks
+    frames, quiet, spoke = [], 0, False
+    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", blocksize=block) as stream:
+        for _ in range(int(max_seconds * 10)):
+            data, _ = stream.read(block)
+            frames.append(data.copy())
+            loud = float(np.sqrt((data**2).mean())) > 0.01
+            spoke = spoke or loud
+            quiet = 0 if loud else quiet + 1
+            if spoke and quiet >= int(silence_after * 10):
+                break
+    return np.concatenate(frames)[:, 0]
+
+
+def wake_loop(jarvis: Jarvis, mouth: "Mouth", wake_word: str) -> None:
+    """Always-listening mode: scan the mic in ~2.5s windows with the tiny
+    Whisper model until the wake word shows up, then hand off to the big one.
+
+    This is the transparent, zero-training way to make ANY phrase a wake word.
+    Trade-off vs a real wake-word engine (openWakeWord): a bit more CPU and a
+    chunk boundary can occasionally split the phrase — say it with intent.
+    """
+    import numpy as np
+    import sounddevice as sd
+
+    scout = Ears(model_size="tiny")  # cheap, always on
+    ears = Ears()                    # accurate, only after wake
+    ack = os.getenv("JARVIS_WAKE_ACK", "Yes?")
+    print(f'Listening for "{wake_word}" — Ctrl-C to quit.')
+
+    while True:
+        chunk = sd.rec(int(2.5 * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype="float32")
+        sd.wait()
+        chunk = chunk[:, 0]
+        if float(np.sqrt((chunk**2).mean())) < 0.005:  # silence — don't feed whisper hallucinations
+            continue
+        if not matches_wake(scout.transcribe(chunk), wake_word):
+            continue
+
+        print("🔔 wake word!")
+        mouth.speak(ack)
+        heard = ears.transcribe(record_command())
+        if not heard:
+            print("(didn't catch that)")
+            continue
+        print(f"you › {heard}")
+        result = jarvis.respond(heard)
+        print(f"jarvis › {result.reply}")
+        mouth.speak(result.reply)
+
+
 def main() -> None:
     try:
         import sounddevice  # noqa: F401
@@ -93,10 +175,20 @@ def main() -> None:
         raise SystemExit("Voice extra not installed: pip install -e '.[voice]'")
 
     jarvis = Jarvis()
-    ears = Ears()
     mouth = Mouth()
-    print("Voice Jarvis ready. Press Enter to talk, Ctrl-C to quit.")
 
+    # JARVIS_WAKE_WORD="waku waku" → always-listening; unset → push-to-talk.
+    wake_word = os.getenv("JARVIS_WAKE_WORD", "").strip()
+    if wake_word:
+        try:
+            wake_loop(jarvis, mouth, wake_word)
+        except KeyboardInterrupt:
+            pass
+        print("\nbye — your memory stays in state.db")
+        return
+
+    ears = Ears()
+    print("Voice Jarvis ready. Press Enter to talk, Ctrl-C to quit.")
     while True:
         try:
             input("\n⏎ press Enter to talk… ")

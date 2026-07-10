@@ -99,7 +99,17 @@ make voice        # push-to-talk: Enter, speak, Enter
 Same loop, same memory, same evals — speech is just another gateway. TTS uses
 the macOS `say` British voice by default (zero setup); for the neural butler
 voice: `pip install kokoro soundfile`, then `JARVIS_TTS=kokoro make voice`.
-Wake-word mode is v2 (we'll train a custom one with openWakeWord).
+
+**Custom wake word** — make it always-listening with ANY phrase, no training:
+
+```bash
+JARVIS_WAKE_WORD="waku waku" make voice
+```
+
+A tiny Whisper model scans the mic; when it hears your phrase, the big model
+takes over for the command. Fully transparent (the matcher is ~15 lines with
+deterministic evals). A trained openWakeWord model is the efficient upgrade
+path for v2.
 
 ## Phone → laptop
 
