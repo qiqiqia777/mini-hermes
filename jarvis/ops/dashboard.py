@@ -290,6 +290,21 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .splitbar div{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;min-width:2px}
   .seg-skip{background:var(--accent)} .seg-ret{background:#c8951f}
   .tile b.money{color:var(--good)}
+  .arch{width:100%;min-width:760px;height:auto;font-family:-apple-system,system-ui,sans-serif}
+  .arch .container{fill:none;stroke:var(--line2);stroke-dasharray:5 4}
+  .arch .container.ops{stroke:var(--accent);opacity:.9}
+  .arch .bx{fill:var(--panel);stroke:var(--line);stroke-width:1}
+  .arch .node{cursor:pointer}
+  .arch .node:hover .bx{stroke:var(--accent);stroke-width:1.5}
+  .arch .loopbox{fill:none;stroke:var(--accent);stroke-width:1.5}
+  .arch .gate{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2}
+  .arch .nt{fill:var(--ink);font-size:12.5px;font-weight:600}
+  .arch .ns{fill:var(--ink2);font-size:10.5px}
+  .arch .grp{fill:var(--ink3);font-size:10px;font-weight:700;letter-spacing:.07em}
+  .arch .fl{fill:var(--ink3);font-size:9.5px}
+  .arch .flow{fill:none;stroke:var(--ink3);stroke-width:1.3;marker-end:url(#arr)}
+  .arch .flow.dash{stroke-dasharray:4 3;opacity:.75}
+  .arch .head{fill:var(--ink3)}
   .chatlog{display:flex;flex-direction:column;gap:10px;margin-bottom:96px}
   .bubble{align-self:flex-end;background:var(--accent);color:#fff;padding:8px 13px;
           border-radius:14px 14px 3px 14px;max-width:75%;font-size:13.5px}
@@ -419,6 +434,88 @@ function wireChat(){
 }
 function scrollChat(){ const l=document.getElementById("chatlog"); if(l) window.scrollTo(0, document.body.scrollHeight); }
 
+// --- Architecture: a live SVG that mirrors the system-design whiteboard.
+// Containment (Harness wraps the ephemeral run), the Loop as a real cycle,
+// memory feeding UP into working memory through the gate, consolidation
+// looping back, and LLM Ops as a separate feedback loop. Every node is live
+// and clickable.
+function archSVG(d){
+  const s = d.stats;
+  const box = (x,y,w,h,title,sub,view,cls="") =>
+    `<g class="node ${cls}" ${view?`onclick="location.hash='${view}'"`:""}>
+       <rect class="bx" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/>
+       <text class="nt" x="${x+11}" y="${y+21}">${title}</text>
+       ${sub?`<text class="ns" x="${x+11}" y="${y+38}">${sub}</text>`:""}
+     </g>`;
+  const lbl = (x,y,t) => `<text class="grp" x="${x}" y="${y}">${t}</text>`;
+  const flow = (d2,cls="") => `<path class="flow ${cls}" d="${d2}"/>`;
+  const flowLbl = (x,y,t) => `<text class="fl" x="${x}" y="${y}">${t}</text>`;
+
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 940 560" class="arch" role="img">
+    <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" class="head"/></marker></defs>
+
+    <!-- HARNESS container -->
+    <rect class="container" x="10" y="26" width="628" height="516" rx="12"/>
+    ${lbl(24,46,"HARNESS — one turn, everything inside is ephemeral")}
+
+    <!-- gateway in -->
+    ${box(28,64,120,34,"Gateway","cli · voice · web","chat")}
+    ${flow("M88 98 L88 120")}
+    <!-- working-memory inputs -->
+    ${box(28,120,120,90,"Working memory","SOUL + memory + history","memory")}
+    ${flow("M148 165 L214 165")}${flowLbl(158,158,"assembled")}
+
+    <!-- LOOP cycle -->
+    <rect class="loopbox" x="214" y="112" width="196" height="150" rx="10"/>
+    ${lbl(224,130,"LOOP")}
+    ${box(230,138,164,42,"LLM agent","reason","loop")}
+    ${box(230,206,164,44,"Tools","create_event · note · message","tools")}
+    ${flow("M300 180 L300 206")}${flow("M330 206 L330 180")}
+    <text class="fl" x="308" y="197">act</text>
+    ${flow("M410 159 L470 159")}${flowLbl(420,152,"end-loop")}
+    ${box(470,138,148,42,"Reply","→ gateway","loop")}
+    ${flow("M544 98 L544 138")}${flowLbl(486,112,"guardrails")}
+    <path class="flow" d="M544 98 C544 72 300 78 148 88" marker-end="url(#arr)"/>
+
+    <!-- retrieval gate feeding working memory -->
+    <path class="gate" d="M88 250 L150 278 L88 306 L26 278 Z"/>
+    <text class="nt" x="58" y="276" text-anchor="middle">Retrieval</text>
+    <text class="nt" x="58" y="290" text-anchor="middle">gate</text>
+    ${flow("M88 250 L88 210","dash")}${flowLbl(96,236,"only if needed")}
+    <text class="ns" x="160" y="282">${s.gate_skips} skipped · ${s.gate_retrieves} retrieved</text>
+
+    <!-- memory stores feeding UP into the gate -->
+    ${lbl(24,338,"MEMORY — three pillars")}
+    ${box(28,346,180,52,"Procedural · SKILL.md",`${d.skills.length} skill(s)`,"memory")}
+    ${box(224,346,180,52,"Semantic · FTS5",`${d.facts.length} facts`,"memory")}
+    ${box(420,346,180,52,"Episodic",`${d.episodes.length} episodes`,"memory")}
+    ${flow("M118 346 L92 306")}
+    ${flow("M314 346 L110 300","dash")}
+    ${flow("M510 346 L120 298","dash")}
+    ${flowLbl(300,330,"keyword top-k")}
+
+    <!-- consolidation loop-back -->
+    ${box(224,440,376,50,"Consolidation · every "+d.consolidate_every+" exchanges",`${d.chat_pending}/${d.consolidate_every*2} queued → distilled into facts`,"memory")}
+    <path class="flow dash" d="M470 180 C640 210 660 470 600 465" marker-end="url(#arr)"/>
+    ${flowLbl(612,300,"save chats")}
+    ${flow("M300 440 L300 398")}${flowLbl(306,420,"distill")}
+
+    <!-- LLM OPS: separate feedback loop -->
+    <rect class="container ops" x="660" y="26" width="268" height="360" rx="12"/>
+    ${lbl(676,46,"LLM OPS — improves the agent")}
+    ${box(676,64,236,46,"Trace",`${s.trace_files} file(s) · always on`,"ops")}
+    ${flow("M794 110 L794 132")}
+    ${box(676,132,236,46,"Eval","deterministic + judge","ops")}
+    ${flow("M794 178 L794 200")}
+    ${box(676,200,236,46,"Release gate",d.eval_report?`det ${d.eval_report.deterministic} · judge ${d.eval_report.judge}`:"run make gate","ops")}
+    ${box(676,290,236,46,"Release","new prompt · model · config","ops")}
+    ${flow("M794 246 L794 290")}
+    <path class="flow dash" d="M676 313 C500 340 300 300 210 262" marker-end="url(#arr)"/>
+    ${flowLbl(430,320,"improved prompt + config")}
+  </svg></div>`;
+}
+
 const VIEWS = {
   chat(){ return chatView(); },
   overview(d){
@@ -431,29 +528,7 @@ const VIEWS = {
     return `<div class="tiles">${tiles}</div>
     <h2>Retrieval gate — the hero decision</h2>${gateSplit(s)}
     <h2 style="margin-top:26px">Architecture — click any box</h2>
-    <div class="map">
-      <div class="lane"><div class="lane-label">One turn</div>
-        <div class="box" onclick="location.hash='ops'"><b>Gateway</b><span>cli · voice · telegram</span></div>
-        <div class="arrow">→</div>
-        <div class="box" onclick="location.hash='memory'"><b>Working memory</b><span>soul + memory + history</span></div>
-        <div class="arrow">→</div>
-        <div class="box" onclick="location.hash='loop'"><b>Loop</b><span>${s.turns} turns</span></div>
-        <div class="arrow">⇄</div>
-        <div class="box" onclick="location.hash='tools'"><b>Tools</b><span>${s.tool_calls} calls</span></div>
-      </div>
-      <div class="lane"><div class="lane-label">Memory</div>
-        <div class="box" onclick="location.hash='memory'"><b>Retrieval gate</b><span>${s.gate_skips} skipped · ${s.gate_retrieves} retrieved</span></div>
-        <div class="box" style="margin-left:10px" onclick="location.hash='memory'"><b>Procedural</b><span>${d.skills.length} skills</span></div>
-        <div class="box" style="margin-left:10px" onclick="location.hash='memory'"><b>Semantic</b><span>${d.facts.length} facts</span></div>
-        <div class="box" style="margin-left:10px" onclick="location.hash='memory'"><b>Episodic</b><span>${d.episodes.length} episodes</span></div>
-        <div class="box" style="margin-left:10px" onclick="location.hash='memory'"><b>Consolidation</b><span>${d.chat_pending}/${d.consolidate_every*2} queued</span></div>
-      </div>
-      <div class="lane"><div class="lane-label">LLM ops</div>
-        <div class="box" onclick="location.hash='ops'"><b>Trace</b><span>${s.trace_files} file(s) · always on</span></div>
-        <div class="box" style="margin-left:10px" onclick="location.hash='ops'"><b>Eval</b><span>${d.eval_report?`det ${d.eval_report.deterministic} · judge ${d.eval_report.judge}`:"not run yet"}</span></div>
-        <div class="box" style="margin-left:10px" onclick="location.hash='ops'"><b>Release gate</b><span>make gate</span></div>
-      </div>
-    </div>
+    ${archSVG(d)}
     <h2>Latest turn</h2>${d.turns.length?turnCard(d.turns[0]):'<div class="card empty">no turns yet — talk to Jarvis first</div>'}`;
   },
   loop(d){
