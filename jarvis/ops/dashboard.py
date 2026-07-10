@@ -353,6 +353,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .msg .mtext{font-size:13.5px;white-space:pre-wrap;color:var(--ink)}
   .chip-c{display:inline-block;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:99px;
           background:var(--good-soft);color:var(--good);text-transform:none;letter-spacing:0;vertical-align:middle}
+  .watchhead{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink2);font-weight:600;margin-bottom:8px}
+  .chat-arch{max-width:600px;margin:0 auto 16px;border:1px solid var(--line);border-radius:12px;
+             padding:8px;background:var(--panel);position:sticky;top:6px;z-index:3}
+  .chat-arch svg{min-width:0;width:100%;height:auto}
   .chatlog{display:flex;flex-direction:column;gap:10px;margin-bottom:96px}
   .bubble{align-self:flex-end;background:var(--accent);color:#fff;padding:8px 13px;
           border-radius:14px 14px 3px 14px;max-width:75%;font-size:13.5px}
@@ -444,18 +448,27 @@ const chatTurnCard = t => `<div class="card">
   <div class="meta">${secs(t.latency_ms)} · ${t.iterations??"?"} iter${t.consolidation?` · consolidated ${t.consolidation.new_facts} fact(s)`:""}</div>
 </div>`;
 
+function renderChatLog(){
+  if (!CHAT.length)
+    return `<div class="empty" style="padding:6px 2px">Send a message below and watch it flow through the harness above — the same pipeline the phone, voice, and CLI gateways drive.</div>`;
+  return CHAT.map(m => m.role==="user"
+      ? `<div class="bubble">${esc(m.text)}</div>`
+      : m.pending ? `<div class="card"><div class="stages"><span class="stage on">gate</span><span class="stage">loop</span><span class="stage">tools</span><span class="stage">reply</span></div><div class="meta" style="margin:0">running the harness…</div></div>`
+      : chatTurnCard(m)).join("");
+}
+
 function chatView(){
-  return `<div class="chatlog" id="chatlog">${
-    CHAT.length ? CHAT.map(m => m.role==="user"
-        ? `<div class="bubble">${esc(m.text)}</div>`
-        : m.pending ? `<div class="card"><div class="stages"><span class="stage on">gate</span><span class="stage">loop</span><span class="stage">tools</span><span class="stage">reply</span></div><div class="meta" style="margin:0">running the harness…</div></div>`
-        : chatTurnCard(m)).join("")
-      : `<div class="empty">Type a message and watch the gate, loop, tools, and memory react — the same harness the CLI, voice, and Telegram gateways drive.</div>`
-  }</div>
-  <div class="chatbar">
-    <input id="msg" placeholder="Message Jarvis — e.g. schedule a swim with Sergey Saturday 5pm" autocomplete="off">
-    <button id="send">Send</button>
-  </div>`;
+  // The diagram lives IN this tab so you type and watch the harness light up in
+  // one place. It's built once; sendChat only re-renders the conversation, so
+  // the SVG persists and the trace-event animation plays on it uninterrupted.
+  return `
+    <div class="watchhead">Live harness — your message flows through this <span id="arch-status" class="arch-status"></span></div>
+    <div class="chat-arch">${archSVG(D)}</div>
+    <div class="chatlog" id="chatlog">${renderChatLog()}</div>
+    <div class="chatbar">
+      <input id="msg" placeholder="Message Jarvis — e.g. schedule a swim with Sergey Saturday 5pm" autocomplete="off">
+      <button id="send">Send</button>
+    </div>`;
 }
 
 async function sendChat(){
@@ -466,22 +479,22 @@ async function sendChat(){
   CHAT.push({role:"user", text});
   const pending = {role:"jarvis", pending:true};
   CHAT.push(pending);
-  document.getElementById("view").innerHTML = chatView();
-  wireChat(); scrollChat();
+  document.getElementById("chatlog").innerHTML = renderChatLog();  // only the log — keep the diagram animating
+  scrollChat();
   try {
     const res = await (await fetch("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message:text})})).json();
     Object.assign(pending, {pending:false}, res.error ? {reply:"Error: "+res.error} : res);
   } catch(e){ Object.assign(pending, {pending:false, reply:"Error: "+e}); }
-  document.getElementById("view").innerHTML = chatView();
-  wireChat(); scrollChat();
-  refresh();  // update the other tabs' data (Loop, Memory, Ops) live
+  document.getElementById("chatlog").innerHTML = renderChatLog();
+  scrollChat();
+  input.focus();
 }
 function wireChat(){
   const b = document.getElementById("send"), i = document.getElementById("msg");
   if (b) b.onclick = sendChat;
   if (i){ i.focus(); i.onkeydown = e => { if (e.key==="Enter") sendChat(); }; }
 }
-function scrollChat(){ const l=document.getElementById("chatlog"); if(l) window.scrollTo(0, document.body.scrollHeight); }
+function scrollChat(){ window.scrollTo({top:0, behavior:"smooth"}); }  // keep the diagram in view to watch it animate
 
 // --- Architecture: a calm live SVG that mirrors the whiteboard's structure
 // (Harness wraps the ephemeral run · Loop is a cycle · memory feeds up through
