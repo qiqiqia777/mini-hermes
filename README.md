@@ -1,4 +1,4 @@
-# launch-jarvis 🤖
+# launch-jarvis
 
 **Your own Jarvis, on your own laptop, in code you can read in an afternoon.**
 
@@ -7,11 +7,13 @@ pillars of every serious agent system — **Harness, Loop, Memory, Eval/LLM-Ops*
 zero frameworks hiding the interesting parts. Built for the
 [Sean's AI Stories](https://www.youtube.com/@SeanAIStories) video series.
 
-- 🏠 **Local-first** — your memory is one SQLite file on your machine. Open it. Read it.
-- 🧠 **Memory is the hero** — procedural / semantic / episodic, with a gate agent that
-  decides *whether* to retrieve and a consolidation agent that decides *what* to keep.
-- 🔍 **Transparent loop** — the agent loop is ~100 lines of plain Python you can step through.
-- ✅ **Eval built in** — deterministic tests AND LLM-as-judge, side by side, with a release gate.
+- **Local-first** — your memory is one SQLite file on your machine. Open it. Read it.
+- **Memory is the hero** — procedural / semantic / episodic, with a gate that decides
+  *whether* to retrieve and a consolidation pass that decides *what* to keep.
+- **Transparent loop** — the agent loop is ~100 lines of plain Python you can step through.
+- **Watch it think** — a local dashboard animates every message as it flows through the
+  harness, and links straight to the real files it reads and writes.
+- **Eval built in** — deterministic tests AND LLM-as-judge, side by side, with a release gate.
 
 ## Quickstart
 
@@ -19,7 +21,7 @@ zero frameworks hiding the interesting parts. Built for the
 git clone https://github.com/ShenSeanChen/launch-jarvis && cd launch-jarvis
 uv venv && uv pip install -e .          # or: pip install -e .
 cp .env.example .env                    # pick a provider, paste ONE key
-make run                                # talk to your Jarvis
+make run                                # talk to your Jarvis in the terminal
 ```
 
 Try: *"Remember that Alex prefers morning meetings."* Quit. Restart.
@@ -27,8 +29,32 @@ Try: *"Remember that Alex prefers morning meetings."* Quit. Restart.
 Your calendar is `.jarvis/calendar.ics`; your memory is `.jarvis/state.db`.
 
 **Works with the model you already pay for**: Anthropic (default), OpenAI, Google
-Gemini, Kimi, or GLM — `JARVIS_PROVIDER=` one of them, paste that key, done.
+Gemini, Kimi, or GLM — set `JARVIS_PROVIDER=` to one of them, paste that key, done.
 The loop speaks one dialect; a [~60-line adapter](jarvis/loop/models.py) covers the rest.
+
+## Watch the harness run — the dashboard
+
+```bash
+make dashboard          # http://localhost:7777
+```
+
+This is the fastest way to *understand* the system. The **Chat & watch** tab puts a live
+architecture diagram above a chat box: send a message and watch it flow through the
+harness — the retrieval gate lights up, the loop calls a tool, the reply comes back,
+memory updates — the same pipeline every gateway (terminal, phone, voice) drives.
+
+Every tab is a window into one pillar, and each links straight to the real local files:
+
+| Tab | What you see |
+|---|---|
+| **Chat & watch** | the live animated diagram + a chat box — type and watch the flow |
+| **Overview** | cost, latency, the gate skip/retrieve split, the clickable architecture map |
+| **Sessions** | the full conversation history across every gateway |
+| **Loop** | every turn with its gate decision, tool calls, tokens, and cost |
+| **Memory** | semantic facts, episodes, loaded skills — with *reveal in Finder* links |
+| **Tools** | calendar events and drafted messages |
+| **state.db** | a live SQLite browser: every table, schema, and row in your one memory file |
+| **Ops** | eval verdict, slowest turns, tokens, and the JSONL traces |
 
 ## How is this different from Claude Desktop / ChatGPT / Cowork?
 
@@ -40,13 +66,13 @@ the products are doing under the hood. That's the point.
 And versus the big open-source assistants (OpenClaw, Hermes)? Same architecture,
 1/100th the code. They're products; this is the readable blueprint.
 
-## The whiteboard → the code
+## The whiteboard maps to the code
 
 Every box on the architecture diagram is one module ([diagram](docs/architecture.md)):
 
 | Diagram box | Module |
 |---|---|
-| Gateway Interface (CLI / Telegram) | [`jarvis/gateway/`](jarvis/gateway) |
+| Gateway Interface (CLI / voice / Telegram / web) | [`jarvis/gateway/`](jarvis/gateway) |
 | Ephemeral Agent Run → Working Memory | [`jarvis/runtime/session.py`](jarvis/runtime/session.py) |
 | The Loop (LLM ↔ tools, end-loop guardrails) | [`jarvis/loop/agent.py`](jarvis/loop/agent.py) |
 | Agentic Tools (schedule / note / message) | [`jarvis/tools/`](jarvis/tools) |
@@ -63,13 +89,13 @@ Every box on the architecture diagram is one module ([diagram](docs/architecture
 
 **1. The retrieval gate.** Most agents hit their memory store on every turn. That's
 slow, and worse — irrelevant memories bias answers. Here a cheap model first answers
-one question: *does this message need memory at all?* Watch it in the CLI:
+one question: *does this message need memory at all?* Watch it in the terminal:
 
 ```
-you › what's 2+2?
-  🚪 retrieval gate: skip — pure math
-you › when am I meeting Alex?
-  🚪 retrieval gate: retrieve — references user's plans
+you > what's 2+2?
+  gate · skip — pure math
+you > when am I meeting Alex?
+  gate · retrieve — references user's plans
 ```
 
 **2. Deterministic eval vs LLM-as-judge.** *"Did it create the right calendar event?"*
@@ -78,7 +104,7 @@ is a judged score with a threshold (`make eval-judge`). Conflating the two is th
 common eval mistake; here they're separate suites you can diff. `make gate` runs both
 as a release gate.
 
-## See your agent think
+## See your agent think (deep traces)
 
 ```bash
 pip install -e '.[tracing]'
@@ -89,7 +115,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 make run
 Every run always writes a plain-text trace to `.jarvis/traces/*.jsonl` too — a trace
 is just "what happened, in order." Langfuse cloud works with the same env toggle.
 
-## Talk to it 🎙
+## Talk to it
 
 ```bash
 pip install -e '.[voice]'
@@ -97,8 +123,8 @@ make voice        # push-to-talk: Enter, speak, Enter
 ```
 
 Same loop, same memory, same evals — speech is just another gateway. TTS uses
-the macOS `say` British voice by default (zero setup); for the neural butler
-voice: `pip install kokoro soundfile`, then `JARVIS_TTS=kokoro make voice`.
+the macOS `say` British voice by default (zero setup); for the neural voice:
+`pip install kokoro soundfile`, then `JARVIS_TTS=kokoro make voice`.
 
 **Custom wake word** — make it always-listening with ANY phrase, no training:
 
@@ -108,16 +134,18 @@ JARVIS_WAKE_WORD="waku waku" make voice
 
 A tiny Whisper model scans the mic; when it hears your phrase, the big model
 takes over for the command. Fully transparent (the matcher is ~15 lines with
-deterministic evals). A trained openWakeWord model is the efficient upgrade
-path for v2.
+deterministic evals). A trained openWakeWord model is the efficient upgrade for v2.
 
-## Phone → laptop
+## Phone to laptop
 
 ```bash
 pip install -e '.[telegram]'
-# @BotFather → /newbot → token into .env → :
+# message @BotFather, /newbot, put the token in .env, then:
 make telegram
 ```
+
+Text your bot from anywhere and your laptop runs the turn — long-polling, so no
+public URL or webhook. Set `TELEGRAM_ALLOWED_USER` to lock it to just you.
 
 ## Add skills — yours or the community's
 
@@ -131,12 +159,25 @@ python -m jarvis skill install https://github.com/<someone>/<repo>/blob/main/ski
 PR it into [`skills/community/`](skills/community). CI validates the frontmatter.
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Every command
+
+| Command | Does |
+|---|---|
+| `make run` | chat in the terminal |
+| `make dashboard` | the live cockpit at localhost:7777 |
+| `make voice` | talk to it (push-to-talk or wake word) |
+| `make telegram` | message it from your phone |
+| `make trace` | deep trace waterfalls (Phoenix) at localhost:6006 |
+| `make eval` | deterministic evals (0/1, no judge) |
+| `make eval-judge` | LLM-as-judge evals (scored %) |
+| `make gate` | the release gate — both eval suites must pass |
+
 ## Upgrade paths (when you outgrow the defaults)
 
 | Default (zero setup) | Upgrade | How |
 |---|---|---|
 | SQLite FTS5 keyword memory | Supabase pgvector semantic search | `JARVIS_SEMANTIC_STORE=supabase` + [sql/init_supabase.sql](sql/init_supabase.sql) — the exact schema from [launch-rag](https://github.com/ShenSeanChen/launch-rag)/[launch-agentic-rag](https://github.com/ShenSeanChen/launch-agentic-rag) |
-| Mock calendar (ICS + SQLite) | Google Calendar | swap `jarvis/tools/calendar.py` internals — the tool schema stays |
+| Mock calendar (ICS + SQLite) | Apple / Google Calendar | `JARVIS_APPLE_CALENDAR=1` (macOS), or swap `jarvis/tools/calendar.py` — the tool schema stays |
 | Hand-built memory pillars | mem0 / Letta / Zep | production frameworks that automate what this repo teaches |
 
 ## Related repos (the building blocks)
@@ -149,7 +190,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Community
 
-⭐ Star the repo, join the [Discord](https://discord.gg/7Ntxzm3eJ), and grab a
+Star the repo, join the [Discord](https://discord.gg/7Ntxzm3eJ), and grab a
 [good first issue](docs/good-first-issues.md) — gateway adapters (WhatsApp, Discord),
 memory backends, and community skills are all designed to be first PRs.
 

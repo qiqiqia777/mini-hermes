@@ -231,6 +231,30 @@ def collect() -> dict:
     }
 
 
+def reveal_path(rel: str) -> dict:
+    """Reveal a file/folder under JARVIS_HOME in the OS file browser, so the
+    dashboard can link straight to the real local files (memories, db, traces).
+    Restricted to paths inside JARVIS_HOME; macOS-only (uses `open`)."""
+    import subprocess
+    import sys
+
+    settings = load_settings()
+    settings.ensure_home()
+    home = settings.home.resolve()
+    target = (home / (rel or ".")).resolve()
+    if target != home and home not in target.parents:
+        return {"error": "path is outside the Jarvis home"}
+    if not target.exists():
+        return {"error": f"not found: {target}"}
+    if sys.platform != "darwin":
+        return {"error": f"reveal is macOS-only — the path is {target}"}
+    subprocess.run(
+        ["open", "-R", str(target)] if target.is_file() else ["open", str(target)],
+        check=False,
+    )
+    return {"ok": True, "revealed": str(target)}
+
+
 def events_since(cursor):
     """New trace events past `cursor` (a line count in today's trace file).
     Any gateway — browser, CLI, voice, Telegram — appends to this same file,
@@ -378,6 +402,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .col-chip{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:5px;
             background:var(--accent-soft);color:var(--accent);border:1px solid var(--line)}
   .dbcell{font-family:var(--mono);font-size:11.5px;color:var(--ink2);max-width:240px;overflow:hidden;text-overflow:ellipsis}
+  .reveal{color:var(--accent);cursor:pointer;font-weight:500;border-bottom:1px dashed var(--accent);padding-bottom:1px}
+  .reveal:hover{border-bottom-style:solid}
   .watchhead{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink2);font-weight:600;margin-bottom:8px}
   .chat-arch{max-width:600px;margin:0 auto 16px;border:1px solid var(--line);border-radius:12px;
              padding:8px;background:var(--panel);position:sticky;top:6px;z-index:3}
@@ -426,6 +452,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <script>
 const esc = s => (s??"").toString().replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 let D = null;
+
+// Click a section's data to open the real local file/folder in Finder.
+function revealFile(p){ fetch("/api/reveal?path=" + encodeURIComponent(p)); }
+const reveal = (path, label) => `<a class="reveal" onclick="revealFile('${path}')">${esc(label)}</a>`;
 
 const money = n => "$" + (n < 0.01 ? n.toFixed(4) : n.toFixed(2));
 const secs = ms => ms==null ? "—" : (ms/1000).toFixed(1)+"s";
@@ -655,14 +685,15 @@ const VIEWS = {
     h += `<h2>Procedural — loaded skills</h2>`;
     h += table(["skill","when it triggers"], d.skills.map(s =>
       `<tr><td><code>${esc(s.name)}</code></td><td>${esc(s.description)}</td></tr>`));
+    h += `<div class="meta" style="margin-top:12px">All of this lives in <code>.jarvis/state.db</code> and <code>.jarvis/SOUL.md</code> — ${reveal("state.db","reveal state.db")} · ${reveal("SOUL.md","reveal SOUL.md")} · ${reveal("skills","open the skills folder")}</div>`;
     return h;
   },
   tools(d){
     let h = `<h2>Calendar events</h2>`;
     h += table(["event","start","end","with"], d.calendar.map(e =>
       `<tr><td>${esc(e.title)}</td><td class="meta">${esc(e.start)}</td><td class="meta">${esc(e.end)}</td><td>${esc(e.attendees)}</td></tr>`));
-    h += `<div class="meta" style="margin-bottom:16px">also written to <code>calendar.ics</code> — import with <code>open .jarvis/calendar.ics</code></div>`;
-    h += `<h2>Outbox — drafted messages</h2>`;
+    h += `<div class="meta" style="margin-bottom:16px">also written to <code>calendar.ics</code> — ${reveal("calendar.ics","reveal calendar.ics in Finder")} (double-click it to import into Calendar.app)</div>`;
+    h += `<h2>Outbox — drafted messages <span style="font-weight:400;text-transform:none;letter-spacing:0">· ${reveal("outbox","open the outbox folder")}</span></h2>`;
     h += d.outbox.length ? d.outbox.map(o=>`<div class="card"><span class="u">${esc(o.name)}</span><div class="r">${esc(o.text)}</div></div>`).join("")
                          : `<div class="card empty">no drafted messages</div>`;
     return h;
@@ -674,6 +705,7 @@ const VIEWS = {
     let h = `<div class="card">
       <div class="u" style="font-family:var(--mono);font-size:12.5px;word-break:break-all">${esc(db.path)}</div>
       <div class="meta">${kb} KB on disk · SQLite + FTS5 · everything Jarvis remembers is in this one file — open it yourself: <code>sqlite3 .jarvis/state.db</code></div>
+      <div class="meta" style="margin-top:8px">${reveal("state.db","reveal state.db in Finder")} &nbsp;·&nbsp; ${reveal("","open the .jarvis folder")}</div>
     </div>`;
     db.tables.forEach(t => {
       h += `<h2>${esc(t.name)} <span style="color:var(--ink3);font-weight:400;text-transform:none;letter-spacing:0">· ${t.count} row${t.count===1?"":"s"}</span></h2>`;
@@ -709,8 +741,8 @@ const VIEWS = {
     h += table(["turn","latency","cost","tools"], slow.map(t =>
       `<tr><td>${esc((t.user_message||"").slice(0,48))}</td><td class="meta">${secs(t.latency_ms)}</td><td class="meta">${money(t.cost||0)}</td><td class="meta">${(t.tools||[]).map(x=>x.tool).join(", ")||"—"}</td></tr>`));
 
-    h += `<h2>Tracing</h2><div class="card">${s.trace_files} trace file(s) in <code>traces/</code> — every turn as JSONL.
-          Span waterfalls: <code>make trace</code> + <code>OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</code>.</div>`;
+    h += `<h2>Tracing</h2><div class="card">${s.trace_files} trace file(s) in <code>traces/</code> — every turn as JSONL. ${reveal("traces","open the traces folder")}
+          <div class="meta" style="margin-top:8px">Span waterfalls: <code>make trace</code> + <code>OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</code>.</div></div>`;
 
     if (d.wake_scans.length){
       h += `<h2>Voice — wake near-misses</h2>`;
@@ -831,6 +863,11 @@ class Handler(BaseHTTPRequestHandler):
             raw = parse_qs(urlparse(self.path).query).get("cursor", [None])[0]
             cursor = int(raw) if raw and raw.lstrip("-").isdigit() else None
             self._send(json.dumps(events_since(cursor)).encode(), "application/json")
+        elif self.path.startswith("/api/reveal"):
+            from urllib.parse import parse_qs, unquote, urlparse
+
+            rel = unquote(parse_qs(urlparse(self.path).query).get("path", [""])[0])
+            self._send(json.dumps(reveal_path(rel)).encode(), "application/json")
         else:
             self._send(PAGE.encode(), "text/html; charset=utf-8")
 
