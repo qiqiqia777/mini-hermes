@@ -15,6 +15,12 @@ zero frameworks hiding the interesting parts. Built for the
   harness, and links straight to the real files it reads and writes.
 - **Eval built in** — deterministic tests AND LLM-as-judge, side by side, with a release gate.
 
+![launch-jarvis architecture — the whiteboard](docs/architecture-whiteboard.png)
+
+> The system-design whiteboard from the [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
+> series. For the **code-accurate** version (every box → a file it maps to), see
+> [The whiteboard maps to the code](#the-whiteboard-maps-to-the-code) below.
+
 ## Quickstart
 
 ```bash
