@@ -1,9 +1,9 @@
-"""Reset .jarvis to a clean, curated state for a demo / recording.
+"""Reset .waku to a clean, curated state for a demo / recording.
 
     python scripts/demo_seed.py
 
 What it does (your old state is backed up first, never just deleted):
-  1. moves the current .jarvis aside to .jarvis.bak-<timestamp>
+  1. moves the current .waku aside to .waku.bak-<timestamp>
   2. creates a fresh state.db + calendar.ics
   3. seeds a small, clean memory (a few facts + one episode) and ONE calendar
      event — Sergey's standing Saturday 5 PM swim
@@ -19,11 +19,11 @@ from __future__ import annotations
 import shutil
 from datetime import datetime
 
-from jarvis.config import load_settings
-from jarvis.db import connect
-from jarvis.memory.episodic.store import SqliteEpisodeStore
-from jarvis.memory.semantic.store import SqliteFactStore
-from jarvis.tools.calendar import make_tool
+from waku.config import load_settings
+from waku.db import connect
+from waku.memory.episodic.store import SqliteEpisodeStore
+from waku.memory.semantic.store import SqliteFactStore
+from waku.tools.calendar import make_tool
 
 # Curated seed — clean, no duplicates. Edit these to taste before recording.
 FACTS = [
@@ -74,7 +74,7 @@ def main() -> None:
     print(create_event(**EVENT))
 
     # regenerate the human-readable MEMORY.md mirror for the fresh state
-    from jarvis.memory import Memory
+    from waku.memory import Memory
 
     Memory(conn, settings, None).export_markdown()
 

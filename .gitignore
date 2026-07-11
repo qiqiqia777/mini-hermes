@@ -9,5 +9,8 @@ traces/
 dist/
 .pytest_cache/
 .ruff_cache/
-.jarvis/
+.waku/
+.waku.bak-*/
+.jarvis.prerename-bak/
+.env.prerename-bak
 .jarvis.bak-*/

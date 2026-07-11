@@ -6,7 +6,7 @@ now with a file path on every box.
 
 ```mermaid
 flowchart TB
-    subgraph GW["Gateway Interface — jarvis/gateway/"]
+    subgraph GW["Gateway Interface — waku/gateway/"]
         CLI["cli.py (default)"]
         TG["telegram.py (optional)"]
     end
@@ -25,7 +25,7 @@ flowchart TB
     GW --> WM
     LLM -->|reply| GW
 
-    subgraph MEM["Memory — jarvis/memory/"]
+    subgraph MEM["Memory — waku/memory/"]
         GATE{{"retrieval_gate.py<br/>'does this turn need memory?'"}}
         PROC["procedural/ — SKILL.md<br/>how to act"]
         SEM["semantic/ — facts (FTS5,<br/>or Supabase pgvector)"]
@@ -42,7 +42,7 @@ flowchart TB
     CONS -->|one episode| EPI
     SEM & EPI --- DB
 
-    subgraph OPS["LLM Ops — jarvis/ops/ + evals/"]
+    subgraph OPS["LLM Ops — waku/ops/ + evals/"]
         TRACE["tracing.py — 1 trace/run<br/>JSONL always · OTel → Phoenix/Langfuse"]
         DET["evals/deterministic — 0/1<br/>'did the right tool fire?'"]
         JUDGE["evals/judge — scored %<br/>'was the reply good?'"]

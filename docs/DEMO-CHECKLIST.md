@@ -41,5 +41,5 @@ permanent spend ledger + `MEMORY.md`, source-tagged Gateway, coming-soon skeleto
 ## Reset between takes
 
 `python scripts/demo_seed.py` — clears the memory/calendar for a clean take but **keeps** traces and
-`usage.jsonl` (your real spend) and backs up the whole `.jarvis` first. It never deletes the db file,
+`usage.jsonl` (your real spend) and backs up the whole `.waku` first. It never deletes the db file,
 so a running `make dashboard`/`make telegram` keeps working. Nothing else clears your data.

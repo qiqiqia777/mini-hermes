@@ -1,4 +1,4 @@
-# launch-jarvis
+# waku-agent
 
 **Your own Waku, on your own laptop, in code you can read in an afternoon.**
 
@@ -15,7 +15,7 @@ zero frameworks hiding the interesting parts. Built for the
   harness, and links straight to the real files it reads and writes.
 - **Eval built in** — deterministic tests AND LLM-as-judge, side by side, with a release gate.
 
-![launch-jarvis architecture — the whiteboard](docs/architecture-whiteboard.png)
+![waku-agent architecture — the whiteboard](docs/architecture-whiteboard.png)
 
 > The system-design whiteboard from the [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
 > series. For the **code-accurate** version (every box → a file it maps to), see
@@ -24,7 +24,7 @@ zero frameworks hiding the interesting parts. Built for the
 ## Quickstart
 
 ```bash
-git clone https://github.com/ShenSeanChen/launch-jarvis && cd launch-jarvis
+git clone https://github.com/ShenSeanChen/waku-agent && cd waku-agent
 uv venv && uv pip install -e .          # installs the `waku` command (or: pip install -e .)
 cp .env.example .env                    # pick a provider, paste ONE key
 waku                                    # talk to your Waku in the terminal
@@ -39,11 +39,11 @@ the background, so one command runs every gateway. (`make run` / `make dashboard
 
 Try: *"Remember that Alex prefers morning meetings."* Quit. Restart.
 *"Book a catch-up with Alex on Friday."* — it remembers, and it books 9am.
-Your calendar is `.jarvis/calendar.ics`; your memory is `.jarvis/state.db`.
+Your calendar is `.waku/calendar.ics`; your memory is `.waku/state.db`.
 
 **Works with the model you already pay for**: Anthropic (default), OpenAI, Google
-Gemini, Kimi, or GLM — set `JARVIS_PROVIDER=` to one of them, paste that key, done.
-The loop speaks one dialect; a [~60-line adapter](jarvis/loop/models.py) covers the rest.
+Gemini, Kimi, or GLM — set `WAKU_PROVIDER=` to one of them, paste that key, done.
+The loop speaks one dialect; a [~60-line adapter](waku/loop/models.py) covers the rest.
 
 ## Watch the harness run — the dashboard
 
@@ -51,14 +51,14 @@ The loop speaks one dialect; a [~60-line adapter](jarvis/loop/models.py) covers 
 waku dashboard          # starts a local server → http://localhost:7777
 ```
 
-This runs a small stdlib web server *you* own (`python -m jarvis.ops.dashboard`, bound to
+This runs a small stdlib web server *you* own (`python -m waku.ops.dashboard`, bound to
 `127.0.0.1`). The browser is just the UI — the same Python process runs every turn, so
 chatting here is identical to `make run`, only with a live view. This is the fastest way to
 *understand* the system. A chat dock sits on the right of
 every tab — type or **speak** (local Whisper, no cloud) and watch it flow through the
 harness on the Overview diagram: the retrieval gate lights up, the loop calls a tool,
 the reply comes back, memory updates — the same pipeline every gateway drives. The whole
-frontend is plain static files (`jarvis/ops/static/`), served with no build step.
+frontend is plain static files (`waku/ops/static/`), served with no build step.
 
 Every tab is a window into one pillar, and each links straight to the real local files:
 
@@ -124,11 +124,11 @@ flowchart LR
   MEM -->|every N chats| CONS["Consolidate → facts"] --> MEM
   REPLY --> OPS["LLM Ops<br/>trace → eval → gate → release"]
   OPS -. improved prompt/config .-> WM
-  WM -.- WATERMARK["launch-jarvis · Sean's AI Stories · @ShenSeanChen"]:::wm
+  WM -.- WATERMARK["waku-agent · Sean's AI Stories · @ShenSeanChen"]:::wm
   classDef wm fill:none,stroke:none,color:#9aa0aa,font-size:11px;
 ```
 
-> _Architecture of **launch-jarvis** — built on [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
+> _Architecture of **waku-agent** — built on [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
 > ([@ShenSeanChen](https://github.com/ShenSeanChen)). Code is MIT; **this diagram is licensed CC BY-NC-SA 4.0** —
 > reuse it with credit to the channel, not for commercial resale._
 
@@ -136,29 +136,29 @@ Every box is one module (full version with every file path: [docs/architecture.m
 
 | Diagram box | Module |
 |---|---|
-| Gateway Interface (CLI / voice / Telegram / web) | [`jarvis/gateway/`](jarvis/gateway) |
-| Ephemeral Agent Run → Working Memory | [`jarvis/runtime/session.py`](jarvis/runtime/session.py) |
-| The Loop (LLM ↔ tools, end-loop guardrails) | [`jarvis/loop/agent.py`](jarvis/loop/agent.py) |
-| Agentic Tools (schedule / note / message) | [`jarvis/tools/`](jarvis/tools) |
-| Procedural Memory (SKILL.md, "how to act") | [`jarvis/memory/procedural/`](jarvis/memory/procedural) + [`skills/`](skills) |
-| Semantic Memory (durable facts, profile) | [`jarvis/memory/semantic/`](jarvis/memory/semantic) |
-| Episodic Memory (dated events, past chats) | [`jarvis/memory/episodic/`](jarvis/memory/episodic) |
-| "Should we even retrieve?" gate | [`jarvis/memory/retrieval_gate.py`](jarvis/memory/retrieval_gate.py) |
-| Consolidate after N chats → summarizer | [`jarvis/memory/consolidation.py`](jarvis/memory/consolidation.py) |
-| Trace (1 trace per run) | [`jarvis/ops/tracing.py`](jarvis/ops/tracing.py) |
+| Gateway Interface (CLI / voice / Telegram / web) | [`waku/gateway/`](waku/gateway) |
+| Ephemeral Agent Run → Working Memory | [`waku/runtime/session.py`](waku/runtime/session.py) |
+| The Loop (LLM ↔ tools, end-loop guardrails) | [`waku/loop/agent.py`](waku/loop/agent.py) |
+| Agentic Tools (schedule / note / message) | [`waku/tools/`](waku/tools) |
+| Procedural Memory (SKILL.md, "how to act") | [`waku/memory/procedural/`](waku/memory/procedural) + [`skills/`](skills) |
+| Semantic Memory (durable facts, profile) | [`waku/memory/semantic/`](waku/memory/semantic) |
+| Episodic Memory (dated events, past chats) | [`waku/memory/episodic/`](waku/memory/episodic) |
+| "Should we even retrieve?" gate | [`waku/memory/retrieval_gate.py`](waku/memory/retrieval_gate.py) |
+| Consolidate after N chats → summarizer | [`waku/memory/consolidation.py`](waku/memory/consolidation.py) |
+| Trace (1 trace per run) | [`waku/ops/tracing.py`](waku/ops/tracing.py) |
 | Eval: deterministic vs LLM-as-judge | [`evals/deterministic/`](evals/deterministic) vs [`evals/judge/`](evals/judge) |
-| Gate → Release | [`jarvis/ops/release_gate.py`](jarvis/ops/release_gate.py) |
+| Gate → Release | [`waku/ops/release_gate.py`](waku/ops/release_gate.py) |
 
 **A note on `MEMORY.md` vs `state.db`.** Some assistants (e.g. Hermes) keep long-term memory as a
 single `MEMORY.md` markdown file. Waku keeps the *queryable* source in `state.db` (the `facts` and
 `episodes` tables, keyword-searchable via FTS5) **and** regenerates a human-readable
-`.jarvis/MEMORY.md` mirror after every turn — so you get both: a real file you can open, backed by a
+`.waku/MEMORY.md` mirror after every turn — so you get both: a real file you can open, backed by a
 sturdy database. The dashboard's **Memory** tab is the friendly view; the **Database** tab shows the
 raw `state.db` tables.
 
 ## The Loop — reason → act → repeat
 
-Yes, there's a real agent loop, and it's [~95 lines of plain Python](jarvis/loop/agent.py) —
+Yes, there's a real agent loop, and it's [~95 lines of plain Python](waku/loop/agent.py) —
 no LangGraph, no hidden control flow:
 
 ```
@@ -181,7 +181,7 @@ conditions, the tool round-trip, and feeding results back as working memory.
 2. Open the **Loop** tab — every turn is listed with its gate decision, each tool call, the
    **iteration count**, tokens, and dollar cost. A tool-using turn shows `iter 2` (reason,
    act, then reason again to reply); a plain answer shows `iter 1`.
-3. Open the **Ops** tab (or `.jarvis/traces/<today>.jsonl`) to read that same turn as raw
+3. Open the **Ops** tab (or `.waku/traces/<today>.jsonl`) to read that same turn as raw
    events in order: `turn_start → gate → llm → tool → llm → turn_end`. That's the loop, on tape.
 
 **The multi-tool loop (the money shot).** One tool is a loop; *chaining* tools is where loop
@@ -189,8 +189,8 @@ engineering earns its name. Try:
 
 > *"Search for the World Cup games still left to play and add each one to my calendar."*
 
-The agent loops across two tools: [`search_web`](jarvis/tools/search.py) reads the web, it
-reasons over the results, then calls [`create_event`](jarvis/tools/calendar.py) once per match —
+The agent loops across two tools: [`search_web`](waku/tools/search.py) reads the web, it
+reasons over the results, then calls [`create_event`](waku/tools/calendar.py) once per match —
 several iterations in a single turn. You'll see `iter 4`, `iter 5`… on the Loop tab and the
 LOOP box pulse for each cycle. `search_web` works keyless via DuckDuckGo but that endpoint
 rate-limits bots, so for a clean take set a free `TAVILY_API_KEY` (see [`.env.example`](.env.example)).
@@ -236,16 +236,16 @@ per-turn gate decisions, and the raw traces inline.
 **The bug workflow (this is the discipline you show on camera):** when you catch a bug by using
 the thing live, you fix it AND add a deterministic case so it can never come back. A real example
 from this repo: the agent didn't know the current *time* and asked for it before scheduling
-"in 30 minutes" → fixed in [`session.py`](jarvis/runtime/session.py), locked forever by
+"in 30 minutes" → fixed in [`session.py`](waku/runtime/session.py), locked forever by
 [`test_working_memory.py`](evals/deterministic/test_working_memory.py). Run `make gate` → green →
 the eval history records the run.
 
-**Spend is permanent:** every LLM call's tokens are appended to `.jarvis/usage.jsonl` — an
+**Spend is permanent:** every LLM call's tokens are appended to `.waku/usage.jsonl` — an
 append-only ledger that a demo reset never wipes. The **Ops** tab shows the all-time cost, tokens,
 and a per-day / per-provider breakdown (dollar cost is estimated from tokens, which are the ground
 truth). So the number you show on camera is your real running total, not a per-session guess.
 
-**Tracing is always on:** every turn appends readable lines to `.jarvis/traces/<date>.jsonl`
+**Tracing is always on:** every turn appends readable lines to `.waku/traces/<date>.jsonl`
 (zero setup) — a trace is just "what happened, in order." For span-waterfall views:
 
 ```bash
@@ -259,10 +259,10 @@ Langfuse cloud speaks the same OTel toggle.
 ## Recording a clean demo
 
 ```bash
-python scripts/demo_seed.py            # resets .jarvis to a tidy, curated state
+python scripts/demo_seed.py            # resets .waku to a tidy, curated state
 ```
 
-It backs up your current `.jarvis` first, then seeds a few clean facts, one episode, and one
+It backs up your current `.waku` first, then seeds a few clean facts, one episode, and one
 event — Sergey's standing **Saturday 5 PM swim**. The chat log and traces start **empty**, so
 when you type live the Loop, traces, and Gateway inbox fill up in front of the viewer. The
 memory/Data/Tools tabs already have tidy content to explain. Edit the seed lists at the top of
@@ -277,12 +277,12 @@ make voice        # push-to-talk: Enter, speak, Enter
 
 Same loop, same memory, same evals — speech is just another gateway. TTS uses
 the macOS `say` British voice by default (zero setup); for the neural voice:
-`pip install kokoro soundfile`, then `JARVIS_TTS=kokoro make voice`.
+`pip install kokoro soundfile`, then `WAKU_TTS=kokoro make voice`.
 
 **Custom wake word** — make it always-listening with ANY phrase, no training:
 
 ```bash
-JARVIS_WAKE_WORD="waku waku" make voice
+WAKU_WAKE_WORD="waku waku" make voice
 ```
 
 A tiny Whisper model scans the mic; when it hears your phrase, the big model
@@ -303,7 +303,7 @@ public URL or webhook. Set `TELEGRAM_ALLOWED_USER` to lock it to just you.
 ## Brief me on my week (Apple Calendar + Mail)
 
 ```bash
-JARVIS_APPLE_TOOLS=1 make brief      # macOS; grant the permission prompts once
+WAKU_APPLE_TOOLS=1 make brief      # macOS; grant the permission prompts once
 ```
 
 Waku reads your **real** Calendar.app (including events invited by email) and
@@ -311,7 +311,7 @@ recent Apple Mail, cross-references your memory, and writes a focus-first briefi
 with clickable `message://` links. Cron it for a morning greeting:
 
 ```
-30 7 * * *  cd ~/launch-jarvis && make brief
+30 7 * * *  cd ~/waku-agent && make brief
 ```
 
 It runs through the normal harness, so it animates on the dashboard like any turn.
@@ -322,7 +322,7 @@ The agent has tools to keep itself useful — no black box:
 - **manage_memory** — correct or forget a fact when you say it's wrong.
 - **update_soul** — save a standing preference you give it (lives in `SOUL.md`).
 - **create_skill** — when you teach it a repeatable workflow, it offers to save it
-  as a skill (written to `.jarvis/skills/`, live the same session).
+  as a skill (written to `.waku/skills/`, live the same session).
 
 You can also edit any of this by hand on the dashboard's Memory tab (edit/delete
 facts, rewrite `SOUL.md`) or in Settings (switch provider/model, paste keys — BYOK,
@@ -334,7 +334,7 @@ kept in your local `.env`, never sent to the browser).
 pip install -e '.[mcp]'
 ```
 
-Create `.jarvis/mcp.json` and any Model Context Protocol server's tools appear to
+Create `.waku/mcp.json` and any Model Context Protocol server's tools appear to
 the agent, namespaced `<server>_<tool>` (and in the dashboard's Tools ▸ MCP tab):
 
 ```json
@@ -345,7 +345,7 @@ the agent, namespaced `<server>_<tool>` (and in the dashboard's Tools ▸ MCP ta
 **Node-free demo** — a tiny self-contained Python MCP server ships in the repo:
 
 ```bash
-cp examples/mcp.demo.json .jarvis/mcp.json   # points at examples/mcp_demo_server.py
+cp examples/mcp.demo.json .waku/mcp.json   # points at examples/mcp_demo_server.py
 make dashboard                               # demo_word_count / demo_reverse_text appear in Tools
 ```
 
@@ -356,7 +356,7 @@ Same pattern scales to any server, yours or a vendor's — no changes to Waku's 
 Skills are procedural memory: markdown instructions loaded only when relevant.
 
 ```bash
-python -m jarvis skill install https://github.com/<someone>/<repo>/blob/main/skills/<skill>/SKILL.md
+python -m waku skill install https://github.com/<someone>/<repo>/blob/main/skills/<skill>/SKILL.md
 ```
 
 **Contribute one — it's just a markdown file.** Copy [`skills/TEMPLATE.md`](skills/TEMPLATE.md),
@@ -382,9 +382,9 @@ The `waku` command is installed with the package; the `make` targets are equival
 ## Roadmap — on the whiteboard, coming soon
 
 A few boxes on the architecture chart are deliberately **skeletons** (see
-[`jarvis/tools/experimental.py`](jarvis/tools/experimental.py)) — the intent is drawn so the
+[`waku/tools/experimental.py`](waku/tools/experimental.py)) — the intent is drawn so the
 diagram maps to something, but they're not wired into the loop, so nothing is over-promised.
-They're OFF by default; `JARVIS_EXPERIMENTAL=1` registers them (they just report "coming soon"),
+They're OFF by default; `WAKU_EXPERIMENTAL=1` registers them (they just report "coming soon"),
 and the dashboard's **Tools** tab lists them under **Coming soon**.
 
 | Whiteboard box | Skeleton tool | Why it's a skeleton (not built yet) |
@@ -401,8 +401,8 @@ as the shape they'll take.
 
 | Default (zero setup) | Upgrade | How |
 |---|---|---|
-| SQLite FTS5 keyword memory | Supabase pgvector semantic search | `JARVIS_SEMANTIC_STORE=supabase` + [sql/init_supabase.sql](sql/init_supabase.sql) — the exact schema from [launch-rag](https://github.com/ShenSeanChen/launch-rag)/[launch-agentic-rag](https://github.com/ShenSeanChen/launch-agentic-rag) |
-| Mock calendar (ICS + SQLite) | Apple / Google Calendar | `JARVIS_APPLE_CALENDAR=1` (macOS), or swap `jarvis/tools/calendar.py` — the tool schema stays |
+| SQLite FTS5 keyword memory | Supabase pgvector semantic search | `WAKU_SEMANTIC_STORE=supabase` + [sql/init_supabase.sql](sql/init_supabase.sql) — the exact schema from [launch-rag](https://github.com/ShenSeanChen/launch-rag)/[launch-agentic-rag](https://github.com/ShenSeanChen/launch-agentic-rag) |
+| Mock calendar (ICS + SQLite) | Apple / Google Calendar | `WAKU_APPLE_CALENDAR=1` (macOS), or swap `waku/tools/calendar.py` — the tool schema stays |
 | Hand-built memory pillars | mem0 / Letta / Zep | production frameworks that automate what this repo teaches |
 
 ## Related repos (the building blocks)

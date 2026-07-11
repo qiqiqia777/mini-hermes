@@ -1,7 +1,7 @@
 [project]
-name = "launch-jarvis"
+name = "waku-agent"
 version = "0.1.0"
-description = "A minimal, transparent, local-first Jarvis: harness + loop + memory + eval, in code you can read in an afternoon."
+description = "A minimal, transparent, local-first Waku: harness + loop + memory + eval, in code you can read in an afternoon."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Sean Chen (ShenSeanChen)" }]
@@ -15,7 +15,7 @@ dependencies = [
 
 [project.scripts]
 # Branded CLI: `waku dashboard`, `waku voice`, `waku` to chat, etc.
-waku = "jarvis.__main__:main"
+waku = "waku.__main__:main"
 
 [project.optional-dependencies]
 # Eval pillar: LLM-as-judge (deterministic evals need only pytest)
@@ -43,7 +43,7 @@ voice = [
 supabase = [
     "supabase>=2.0",
 ]
-# Optional: connect MCP servers (.jarvis/mcp.json)
+# Optional: connect MCP servers (.waku/mcp.json)
 mcp = [
     "mcp>=1.0",
 ]
@@ -57,7 +57,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["jarvis"]
+packages = ["waku"]
 
 [tool.ruff]
 line-length = 100

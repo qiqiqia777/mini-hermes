@@ -1,5 +1,5 @@
 """Shared eval plumbing: a scripted fake LLM client for offline tests, and a
-real-Jarvis factory for live ones."""
+real-Waku factory for live ones."""
 
 from __future__ import annotations
 
@@ -37,14 +37,14 @@ class ScriptedClient:
         return self._script.pop(0)
 
 
-def make_jarvis(home: Path, client=None, **settings_overrides):
-    """Build a Jarvis with an isolated home dir; optionally swap in a fake client."""
-    from jarvis.app import Jarvis
-    from jarvis.config import Settings
+def make_waku(home: Path, client=None, **settings_overrides):
+    """Build a Waku with an isolated home dir; optionally swap in a fake client."""
+    from waku.app import Waku
+    from waku.config import Settings
 
     # evals must NEVER touch the real Apple Calendar, whatever .env says
     settings_overrides.setdefault("apple_calendar", False)
     settings = Settings(home=home, **settings_overrides)
     if client is not None and not settings.api_key:
         settings.api_key = "offline"  # never read the real key for scripted runs
-    return Jarvis(settings=settings, client=client)
+    return Waku(settings=settings, client=client)
