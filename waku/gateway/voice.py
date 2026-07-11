@@ -124,7 +124,7 @@ def matches_wake(text: str, wake_word: str) -> bool:
             return True
         words, n = heard.split(), len(variant.split())
         if any(
-            difflib.SequenceMatcher(None, " ".join(words[i : i + n]), variant).ratio() >= 0.75
+            difflib.SequenceMatcher(None, " ".join(words[i : i + n]), variant).ratio() >= 0.7
             for i in range(max(0, len(words) - n + 1))
         ):
             return True
@@ -157,6 +157,20 @@ def record_command(stream, max_seconds: float = 15.0, silence_after: float = 1.2
     return np.concatenate(frames)[:, 0]
 
 
+def wait_for_speech(stream, timeout: float) -> bool:
+    """Poll the SAME stream for the onset of speech, up to `timeout` seconds.
+    Returns True the moment the mic goes loud, False if it stays quiet — lets a
+    conversation stay open for follow-ups (Siri-style) without the wake word."""
+    import numpy as np
+
+    block = SAMPLE_RATE // 10
+    for _ in range(int(timeout * 10)):
+        data, _ = stream.read(block)
+        if float(np.sqrt((data**2).mean())) > _mic_threshold() * 2:
+            return True
+    return False
+
+
 def wake_loop(waku: Waku, mouth: "Mouth", wake_word: str) -> None:
     """Always-listening mode: scan the mic in ~2.5s windows with the tiny
     Whisper model until the wake word shows up, then hand off to the big one.
@@ -179,6 +193,7 @@ def wake_loop(waku: Waku, mouth: "Mouth", wake_word: str) -> None:
     scout = Ears(model_size="tiny")  # cheap, always on
     ears = Ears()                    # accurate, only after wake
     ack = os.getenv("WAKU_WAKE_ACK", "Yes?")
+    followup = float(os.getenv("WAKU_FOLLOWUP_SECONDS", "8"))  # stay open, Siri-style
     block = SAMPLE_RATE // 10
     # Pin the scout's transcription language to match the wake word's script —
     # otherwise Whisper hears "waku waku" and helpfully writes わくわく, which
@@ -218,15 +233,23 @@ def wake_loop(waku: Waku, mouth: "Mouth", wake_word: str) -> None:
             print("\n[wake word]")
             mouth.speak(ack)
             drain()  # don't transcribe the ack playing over the mic
-            heard = ears.transcribe(record_command(stream))
-            if not heard:
-                print("(didn't catch that)")
-                continue
-            print(f"you › {heard}")
-            result = waku.respond(heard, observer=_observer, source="voice")
-            print(f"waku › {result.reply}")
-            mouth.speak(result.reply)
-            drain()  # ...and don't wake on the tail of the reply
+
+            # Stay in the conversation after waking: answer, then keep listening
+            # for a follow-up for `followup` seconds — no need to say "waku waku"
+            # again (like Siri). A quiet stretch drops back to wake-word mode.
+            while True:
+                heard = ears.transcribe(record_command(stream))
+                if heard:
+                    print(f"you › {heard}")
+                    result = waku.respond(heard, observer=_observer, source="voice")
+                    print(f"waku › {result.reply}")
+                    mouth.speak(result.reply)
+                else:
+                    print("(didn't catch that)")
+                drain()  # ...and don't wake on the tail of the reply
+                status(f"· still here — just talk, or I'll rest in {followup:.0f}s")
+                if not wait_for_speech(stream, followup):
+                    break  # quiet → back to listening for the wake word
             window = []
 
 
@@ -240,9 +263,12 @@ def main() -> None:
     waku.session.session_id = "voice"   # its own conversation thread in the inbox
     mouth = Mouth()
 
-    # Hands-free by default: always-listening for "waku waku". Set
-    # WAKU_WAKE_WORD="" to fall back to push-to-talk (Enter to talk).
-    wake_word = os.getenv("WAKU_WAKE_WORD", "waku waku").strip()
+    # Hands-free by default: always-listening for "waku waku". The default packs
+    # in the ways the tiny scanner mis-hears it (wakuwaku / waka waka / kana), so
+    # it triggers reliably. Set WAKU_WAKE_WORD="" for push-to-talk instead.
+    wake_word = os.getenv(
+        "WAKU_WAKE_WORD", "waku waku,wakuwaku,waku,waka waka,wako wako,walk walk,わくわく"
+    ).strip()
     if wake_word:
         try:
             wake_loop(waku, mouth, wake_word)
