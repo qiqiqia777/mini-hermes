@@ -587,6 +587,15 @@ const VIEWS = {
         <input type="password" data-key="${p.key_env}" placeholder="${p.key_set?"key on file — blank keeps it":"paste key"}"></label>`).join("")}
       <div style="margin-top:12px"><button class="save" onclick="saveSettings()">Save &amp; switch</button>
         <span class="meta" id="set-msg" style="margin-left:10px"></span></div>
+    </div>
+    <h2>Web search key (optional)</h2><div class="card">
+      <div class="meta" style="margin-bottom:8px">A free <a class="reveal" onclick="window.open('https://tavily.com','_blank')">Tavily</a> key makes the <code>search_web</code> tool reliable (the World Cup demo). Stored in your local <code>.env</code>, same as above.</div>
+      <label class="fld"><span>Tavily key <span class="meta">(${esc(st.search_key_env||"TAVILY_API_KEY")})</span>
+        ${st.search_key_set?`<span class="srcpill" style="background:var(--good-soft);color:var(--good)">set ····${esc(st.search_key_last4)}</span>`
+                          :`<span class="srcpill apple">not set</span>`}</span>
+        <input type="password" data-key="TAVILY_API_KEY" placeholder="${st.search_key_set?"key on file — blank keeps it":"paste key"}"></label>
+      <div style="margin-top:12px"><button class="save" onclick="saveSettings()">Save</button>
+        <span class="meta" style="margin-left:10px">reads live — no restart needed for search</span></div>
       <div class="meta" style="margin-top:10px">Note: running terminal / voice / Telegram gateways keep their old provider until restarted.</div>
     </div>`;
     return h;

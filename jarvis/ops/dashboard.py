@@ -595,6 +595,10 @@ def settings_info() -> dict:
              "default_model": p.model}
             for name, p in PROVIDERS.items()
         ],
+        # optional web-search key (Tavily) — same BYOK treatment as provider keys
+        "search_key_env": "TAVILY_API_KEY",
+        "search_key_set": bool(os.getenv("TAVILY_API_KEY")),
+        "search_key_last4": (os.getenv("TAVILY_API_KEY") or "")[-4:],
     }
 
 
@@ -609,7 +613,8 @@ def apply_settings(payload: dict) -> dict:
     provider = payload.get("provider")
     if provider not in PROVIDERS:
         return {"error": f"unknown provider {provider}"}
-    writable = {"JARVIS_PROVIDER", "JARVIS_MODEL", "JARVIS_SMALL_MODEL"} | {p.key_env for p in PROVIDERS.values()}
+    writable = ({"JARVIS_PROVIDER", "JARVIS_MODEL", "JARVIS_SMALL_MODEL", "TAVILY_API_KEY"}
+                | {p.key_env for p in PROVIDERS.values()})
     env_path = find_dotenv(usecwd=True) or ".env"
 
     updates = {"JARVIS_PROVIDER": provider,
