@@ -333,7 +333,7 @@ def session_list(conn) -> list[dict]:
 
 
 # A tool's origin, for grouping in the Tools tab (name → category).
-_FLAGSHIP = {"create_event", "save_note", "send_message"}
+_FLAGSHIP = {"create_event", "list_events", "save_note", "send_message"}
 _SELFMGMT = {"manage_memory", "update_soul", "create_skill"}
 _APPLE = {"read_apple_calendar", "read_apple_mail", "create_reminder", "create_note"}
 _WEB = {"search_web"}
@@ -382,6 +382,7 @@ def tools_info() -> dict:
         conn = connect(settings.home)
         mem = Memory(conn, settings, None)
         tools = [calendar.make_tool(conn, settings.home, apple_calendar=settings.apple_calendar),
+                 calendar.make_list_tool(conn),
                  notes.make_tool(conn), messages.make_tool(settings.home),
                  search.make_tool(),
                  memory_admin.make_manage_memory_tool(mem),

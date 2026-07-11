@@ -173,3 +173,51 @@ def make_tool(conn: sqlite3.Connection, home: Path, apple_calendar: bool = False
         },
         fn=create_event,
     )
+
+
+def make_list_tool(conn: sqlite3.Connection) -> Tool:
+    """list_events — the read side of the calendar. create_event writes; without
+    this the agent can only book, never answer "what's on my calendar?"."""
+    def list_events(start: str = "", end: str = "", limit: int = 20) -> str:
+        query = 'SELECT title, start, "end", attendees FROM calendar_events'
+        clauses, params = [], []
+        if start:
+            clauses.append("start >= ?")
+            params.append(start[:10])                 # inclusive from the start of that day
+        if end:
+            clauses.append("start <= ?")
+            params.append(end[:10] + "T23:59")        # inclusive through the end of that day
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY start LIMIT ?"
+        params.append(max(1, min(int(limit or 20), 100)))
+        rows = conn.execute(query, params).fetchall()
+        if not rows:
+            window = f" between {start} and {end}" if (start or end) else ""
+            return f"No events found{window}. (This reads the local calendar in .jarvis/state.db.)"
+        lines = ["Events on the local calendar:"]
+        for r in rows:
+            who = f" with {r['attendees']}" if r["attendees"] else ""
+            lines.append(f"- {r['title']}: {r['start']} → {r['end']}{who}")
+        return "\n".join(lines)
+
+    return Tool(
+        name="list_events",
+        description=(
+            "Read the user's calendar: list events, optionally within a date range. "
+            "Use whenever the user asks what's on their calendar / schedule for a day, "
+            "week, yesterday, etc. Dates are ISO (e.g. 2026-07-10); omit both to list "
+            "everything upcoming. For 'yesterday'/'today' resolve the date from the "
+            "current time given in your system prompt."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "start": {"type": "string", "description": "earliest date to include, ISO (e.g. 2026-07-10)"},
+                "end": {"type": "string", "description": "latest date to include, ISO (e.g. 2026-07-10)"},
+                "limit": {"type": "integer", "description": "max events to return (default 20)"},
+            },
+            "required": [],
+        },
+        fn=list_events,
+    )

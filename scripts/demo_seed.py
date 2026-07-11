@@ -45,9 +45,8 @@ def main() -> None:
         backup = home.with_name(f"{home.name}.bak-{stamp}")
         shutil.copytree(home, backup)
         print(f"backed up {home} -> {backup}")
-        # wipe the runtime artifacts, keep SOUL.md + eval reports
-        for name in ("state.db", "calendar.ics"):
-            (home / name).unlink(missing_ok=True)
+        # calendar.ics + these dirs are plain files no process holds open
+        (home / "calendar.ics").unlink(missing_ok=True)
         for sub in ("traces", "outbox", "skills"):
             d = home / sub
             if d.exists():
@@ -55,6 +54,13 @@ def main() -> None:
 
     settings.ensure_home()
     conn = connect(home)
+
+    # Clear the DB rows IN PLACE — never delete state.db. Deleting the file
+    # would leave any live gateway (a running `make telegram`, the dashboard,
+    # an open CLI) holding a broken, read-only connection to the old inode.
+    for table in ("chat_log", "calendar_events", "facts", "episodes"):
+        conn.execute(f"DELETE FROM {table}")   # triggers keep the FTS index in sync
+    conn.commit()
 
     facts, episodes = SqliteFactStore(conn), SqliteEpisodeStore(conn)
     for subject, content in FACTS:
