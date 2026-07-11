@@ -19,6 +19,7 @@ openWakeWord can train a custom wake word for whatever we name this thing.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 
@@ -61,6 +62,33 @@ class Ears:
         return " ".join(seg.text.strip() for seg in segments).strip()
 
 
+def _best_say_voice() -> str:
+    """Pick the nicest available macOS voice: prefer a downloaded Premium/Enhanced
+    (near-Siri quality) voice, then a decent compact one. Beats hardcoding a
+    robotic default — and auto-upgrades the moment you download a better voice in
+    System Settings ▸ Accessibility ▸ Spoken Content ▸ System Voice."""
+    try:
+        out = subprocess.run(["say", "-v", "?"], capture_output=True, text=True, timeout=5).stdout
+    except Exception:  # noqa: BLE001
+        return "Daniel"
+    # each line: "Name (variant)      en_US    # sample" — split name from the locale column
+    english = []
+    for ln in out.splitlines():
+        m = re.match(r"^(.+?)\s{2,}([a-z]{2})_", ln)
+        if m and m.group(2) == "en":
+            english.append(m.group(1).strip())
+    # first: a downloaded high-quality voice (Premium > Enhanced)
+    for tag in ("(Premium)", "(Enhanced)"):
+        hit = next((n for n in english if tag in n), None)
+        if hit:
+            return hit
+    # else a reasonable compact voice, if present
+    for pref in ("Serena", "Kate", "Daniel", "Samantha"):
+        if pref in english:
+            return pref
+    return english[0] if english else "Daniel"
+
+
 class Mouth:
     """TTS with a boring, reliable default (macOS `say`) and a neural upgrade
     (Kokoro-82M, Apache-2.0 — its bm_* voices are the proper British butler)."""
@@ -83,6 +111,8 @@ class Mouth:
 
             self.pipeline = KPipeline(lang_code="b")  # b = British English
             self.voice = self.voice or "bm_george"
+        elif self.engine == "say" and not self.voice:
+            self.voice = _best_say_voice()  # auto-upgrade to a Premium/Enhanced voice
 
     def speak(self, text: str) -> None:
         if not text:
