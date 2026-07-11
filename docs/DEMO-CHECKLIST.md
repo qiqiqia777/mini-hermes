@@ -23,18 +23,18 @@ proves, where to look, and whether it's been dry-run verified. Keep this updated
 | 7 | **Multi-tool loop (money shot)** | *"Search the World Cup games still left and add each to my calendar"* | Loop tab `iter 8`: `search_web` × N → `create_event` × N | [x] |
 | 8 | Consolidation (Memory) | keep chatting past N exchanges | Memory ▸ Consolidation; a new episode + distilled facts | [x] |
 | 9 | Telegram gateway | message the bot from your phone | Gateway tab shows it tagged `telegram` | [x] |
-| 10 | **Voice** | click the mic in the dock, speak (or `WAKU_WAKE_WORD="waku waku" waku voice`) | records WAV → local Whisper transcribes into the input | [ ] |
+| 10 | **Voice** | `waku voice` — hands-free, say "waku waku, …" (or click the dock mic) | WAV → local Whisper; landed in a distinct `voice` conversation | [x] |
 | 11 | Eval / LLM-Ops (hero 2) | `make gate` in a terminal | prints `GATE OPEN`; Ops ▸ Eval history gains a row | [x] |
 | 12 | Spend ledger | (just look) | Ops: all-time cost/tokens, per-day — survives resets | [x] |
-| 13 | **Database tab** | click each table tab; run a query in the **SQL console** | per-table schema (indigo headers) + rows; `SELECT` returns live data | [ ] |
-| 14 | Ops walkthrough | (just look) | Ops: eval-history table, per-turn gate decisions, slowest turns, inline JSONL traces | [ ] |
+| 13 | **Database tab** | click each table tab; run a query in the **SQL console** | per-table schema (indigo headers) + rows; `SELECT` returns live data (and persists) | [x] |
+| 14 | Ops walkthrough | (just look) | Ops: eval-history table, per-turn gate decisions, slowest turns, inline JSONL traces | [x] |
 | 15 | Markdown chat + Gateway inbox | (bonus) | replies render bold/tables/lists; Gateway = channel-tagged conversation inbox, telegram live | [x] |
 
-## Still to verify
+## Status: all 15 beats dry-run verified ✅
 
-- [ ] **Voice** (beat 10) — mic → WAV → `/api/voice` → local Whisper. Confirm one clean transcription in a real browser tab (grant mic permission).
-- [ ] **Database tab** (beat 13) — walk the per-table tabs and run a `SELECT` in the SQL console.
-- [ ] **Ops walkthrough** (beat 14) — walk the eval history, gate decisions, and inline traces (beyond just running `make gate`).
+Everything above works on the live dashboard. Three real gateways proven (web / telegram /
+voice), all four pillars, both hero moments. Remaining is optional polish, not testing —
+e.g. a top-to-bottom README pass as the on-camera script, and `demo_seed.py` for a clean take.
 
 ## Where the git history lives
 
