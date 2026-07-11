@@ -116,6 +116,17 @@ conditions, the tool round-trip, and feeding results back as working memory.
 3. Open the **Ops** tab (or `.jarvis/traces/<today>.jsonl`) to read that same turn as raw
    events in order: `turn_start → gate → llm → tool → llm → turn_end`. That's the loop, on tape.
 
+**The multi-tool loop (the money shot).** One tool is a loop; *chaining* tools is where loop
+engineering earns its name. Try:
+
+> *"Search for the World Cup games still left to play and add each one to my calendar."*
+
+The agent loops across two tools: [`search_web`](jarvis/tools/search.py) reads the web, it
+reasons over the results, then calls [`create_event`](jarvis/tools/calendar.py) once per match —
+several iterations in a single turn. You'll see `iter 4`, `iter 5`… on the Loop tab and the
+LOOP box pulse for each cycle. `search_web` works keyless via DuckDuckGo but that endpoint
+rate-limits bots, so for a clean take set a free `TAVILY_API_KEY` (see [`.env.example`](.env.example)).
+
 ## The two hero moments
 
 **1. The retrieval gate.** Most agents hit their memory store on every turn. That's

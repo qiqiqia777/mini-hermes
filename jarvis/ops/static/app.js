@@ -83,11 +83,18 @@ const table = (heads, rows) => rows.length
   : `<div class="card empty">nothing here yet</div>`;
 
 const gateSplit = s => {
-  const tot = s.gate_skips + s.gate_retrieves || 1;
+  if (!(s.gate_skips + s.gate_retrieves))
+    return `<div class="splitbar"><div class="seg-skip" style="width:100%;opacity:.35"></div></div>
+      <div class="meta" style="margin-top:6px">no turns yet — send a message and the gate starts deciding</div>`;
+  const tot = s.gate_skips + s.gate_retrieves;
   const skipPct = Math.round(s.gate_skips/tot*100), retPct = 100-skipPct;
+  // only label a segment when it's wide enough to fit the text — otherwise a
+  // 0%/tiny segment spills its label past the bar (the "0 retri" bug).
+  const seg = (cls, n, label, pct) =>
+    `<div class="${cls}" style="width:${pct}%">${pct>=14?`${n} ${label}`:""}</div>`;
   return `<div class="splitbar">
-    <div class="seg-skip" style="width:${skipPct}%">${s.gate_skips} skipped</div>
-    <div class="seg-ret" style="width:${retPct}%">${s.gate_retrieves} retrieved</div>
+    ${seg("seg-skip", s.gate_skips, "skipped", skipPct)}
+    ${seg("seg-ret", s.gate_retrieves, "retrieved", retPct)}
   </div><div class="meta" style="margin-top:6px">the retrieval gate skipped memory on ${skipPct}% of turns — that's latency and bias saved</div>`;
 };
 
@@ -599,7 +606,8 @@ const VIEWS = {
       A tool is a name + description the model reads, a JSON schema, and a Python function — that's it.
       ${t.apple_on?"":"Apple tools are off (set <code>JARVIS_APPLE_TOOLS=1</code>). "}Connect more via
       <a class="reveal" onclick="location.hash='tools/mcp'">MCP</a>.</div>`;
-    const SRC = [["flagship","Flagship task — scheduling"],["self-management","Self-management — it edits its own memory"],
+    const SRC = [["flagship","Flagship task — scheduling"],["web","Web search"],
+      ["self-management","Self-management — it edits its own memory"],
       ["apple","Apple ecosystem"],["mcp","MCP servers"],["other","Other"]];
     SRC.forEach(([key,label]) => {
       const items = t.catalog.filter(c => c.source === key);
@@ -854,7 +862,15 @@ async function toggleMic(){
       if (r.text){ input.value = r.text; input.focus(); }
     };
     mediaRec.start(); btn.classList.add("rec");
-  } catch(e){ if (input) input.placeholder = "mic unavailable — " + e; }
+  } catch(e){
+    if (!input) return;
+    // clearer guidance, and restore the normal placeholder after a moment so
+    // the input doesn't stay stuck on an error string.
+    input.placeholder = e && e.name === "NotAllowedError"
+      ? "allow microphone access for this page, then click the mic again"
+      : "mic unavailable: " + (e && e.message || e);
+    setTimeout(() => { input.placeholder = "Message Jarvis…"; }, 5000);
+  }
 }
 function wireMic(){ const b = document.getElementById("mic"); if (b) b.onclick = toggleMic; }
 

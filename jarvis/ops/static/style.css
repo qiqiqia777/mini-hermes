@@ -108,7 +108,7 @@
   @keyframes blink{50%{opacity:0}}
   @media (prefers-reduced-motion:reduce){.caret{animation:none}}
   .splitbar{display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid var(--line);margin-top:2px}
-  .splitbar div{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;min-width:2px}
+  .splitbar div{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;min-width:0;overflow:hidden;white-space:nowrap}
   .seg-skip{background:var(--accent)} .seg-ret{background:#c8951f}
   .tile b.money{color:var(--good)}
   .arch{width:100%;min-width:760px;height:auto;font-family:-apple-system,system-ui,sans-serif}

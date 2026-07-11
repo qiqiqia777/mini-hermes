@@ -336,11 +336,14 @@ def session_list(conn) -> list[dict]:
 _FLAGSHIP = {"create_event", "save_note", "send_message"}
 _SELFMGMT = {"manage_memory", "update_soul", "create_skill"}
 _APPLE = {"read_apple_calendar", "read_apple_mail", "create_reminder", "create_note"}
+_WEB = {"search_web"}
 
 
 def _tool_source(name: str, mcp_servers: list[str]) -> str:
     if name in _FLAGSHIP:
         return "flagship"
+    if name in _WEB:
+        return "web"
     if name in _SELFMGMT:
         return "self-management"
     if name in _APPLE:
@@ -374,12 +377,13 @@ def tools_info() -> dict:
         # Display-only: same tools minus MCP (building the real registry would
         # start MCP servers, which we don't want on a 5-second poll).
         from jarvis.memory import Memory
-        from jarvis.tools import calendar, memory_admin, messages, notes
+        from jarvis.tools import calendar, memory_admin, messages, notes, search
 
         conn = connect(settings.home)
         mem = Memory(conn, settings, None)
         tools = [calendar.make_tool(conn, settings.home, apple_calendar=settings.apple_calendar),
                  notes.make_tool(conn), messages.make_tool(settings.home),
+                 search.make_tool(),
                  memory_admin.make_manage_memory_tool(mem),
                  memory_admin.make_update_soul_tool(settings),
                  memory_admin.make_create_skill_tool(settings, mem)]
