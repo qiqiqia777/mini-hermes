@@ -917,40 +917,65 @@ function wireChrome(){
 // --- voice on the dashboard: record in the browser, transcribe on the server
 // with the SAME local Whisper `make voice` uses. Text lands in the input for
 // you to review, then Send — nothing leaves the machine.
-let mediaRec = null, audioChunks = [];
+// Voice capture records WAV (uncompressed PCM) via the Web Audio API — NOT
+// MediaRecorder's WebM/Opus, which faster-whisper/PyAV often can't decode
+// ("transcription failed [Errno …]"). WAV is trivially decodable server-side.
+let micCtx = null, micStream = null, micNode = null, micBuf = [], micOn = false;
+const micHint = (msg) => { const i = document.getElementById("dmsg");
+  if (i){ i.placeholder = msg; setTimeout(()=>{ i.placeholder = "Message Waku…"; }, 8000); } };
+
 async function toggleMic(){
-  const btn = document.getElementById("mic"), input = document.getElementById("dmsg");
-  if (mediaRec && mediaRec.state === "recording"){ mediaRec.stop(); return; }
-  const hint = (msg) => { input.placeholder = msg; setTimeout(()=>{ input.placeholder="Message Waku…"; }, 8000); };
-  // The mic API only exists in a normal, secure browser tab — not in IDE/embedded
-  // webviews (the common gotcha). Say so instead of failing silently.
+  const btn = document.getElementById("mic");
+  if (micOn){ await stopMic(); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    hint("voice needs a normal browser tab at localhost:7777 — not the IDE preview pane");
+    micHint("voice needs a normal browser tab at localhost:7777 — not the IDE preview pane");
     return;
   }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    mediaRec = new MediaRecorder(stream); audioChunks = [];
-    mediaRec.ondataavailable = e => audioChunks.push(e.data);
-    mediaRec.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      btn.classList.remove("rec");
-      const hold = input.placeholder; input.placeholder = "transcribing…";
-      const blob = new Blob(audioChunks, {type:"audio/webm"});
-      let r; try { r = await (await fetch("/api/voice", {method:"POST", body:blob})).json(); }
-      catch(e){ r = {error:String(e)}; }
-      input.placeholder = hold;
-      if (r.error){ input.value = ""; input.placeholder = r.error; return; }
-      if (r.text){ input.value = r.text; input.focus(); }
-    };
-    mediaRec.start(); btn.classList.add("rec");
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    micCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = micCtx.createMediaStreamSource(micStream);
+    micNode = micCtx.createScriptProcessor(4096, 1, 1);
+    micBuf = [];
+    micNode.onaudioprocess = e => micBuf.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    source.connect(micNode); micNode.connect(micCtx.destination);
+    micOn = true; btn.classList.add("rec");
   } catch(e){
-    if (!input) return;
     console.warn("mic error:", e);
-    hint(e && e.name === "NotAllowedError"
+    micHint(e && e.name === "NotAllowedError"
       ? "mic blocked — click the lock icon in the address bar → allow Microphone → reload (macOS: also System Settings ▸ Privacy ▸ Microphone ▸ your browser)"
       : "mic unavailable: " + (e && e.message || e));
   }
+}
+
+async function stopMic(){
+  const btn = document.getElementById("mic"), input = document.getElementById("dmsg");
+  micOn = false; btn.classList.remove("rec");
+  try { micNode.disconnect(); } catch(e){}
+  micStream.getTracks().forEach(t => t.stop());
+  const rate = micCtx.sampleRate;
+  micCtx.close();
+  const wav = encodeWAV(micBuf, rate);
+  const hold = input.placeholder; input.placeholder = "transcribing…";
+  let r; try { r = await (await fetch("/api/voice", {method:"POST", body:wav})).json(); }
+  catch(e){ r = {error:String(e)}; }
+  input.placeholder = hold;
+  if (r.error){ input.value = ""; micHint("voice: " + r.error); return; }
+  if (r.text){ input.value = r.text; input.focus(); }
+}
+
+// float32 chunks → 16-bit PCM mono WAV blob
+function encodeWAV(chunks, rate){
+  let n = 0; chunks.forEach(c => n += c.length);
+  const pcm = new Float32Array(n); let off = 0; chunks.forEach(c => { pcm.set(c, off); off += c.length; });
+  const buf = new ArrayBuffer(44 + pcm.length * 2), view = new DataView(buf);
+  const str = (o, s) => { for (let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); };
+  str(0,"RIFF"); view.setUint32(4, 36 + pcm.length*2, true); str(8,"WAVE"); str(12,"fmt ");
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+  view.setUint32(24,rate,true); view.setUint32(28,rate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+  str(36,"data"); view.setUint32(40, pcm.length*2, true);
+  let o = 44; for (let i=0;i<pcm.length;i++){ const s = Math.max(-1, Math.min(1, pcm[i])); view.setInt16(o, s<0 ? s*0x8000 : s*0x7FFF, true); o += 2; }
+  return new Blob([view], {type:"audio/wav"});
 }
 function wireMic(){ const b = document.getElementById("mic"); if (b) b.onclick = toggleMic; }
 

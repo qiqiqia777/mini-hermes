@@ -506,7 +506,9 @@ def transcribe_audio(raw: bytes) -> dict:
     with _whisper_lock:
         if _whisper is None:
             _whisper = WhisperModel(os.getenv("WAKU_WHISPER_MODEL", "base"), compute_type="int8")
-    tmp = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
+    # the browser sends WAV (PCM) — Whisper/PyAV decode it reliably (WebM/Opus
+    # from MediaRecorder often fails to decode).
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.write(raw)
     tmp.close()
     try:
