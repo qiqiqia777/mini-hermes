@@ -79,8 +79,9 @@ def main() -> None:
     Memory(conn, settings, None).export_markdown()
 
     print(f"\nclean demo state ready in {home}")
-    print(f"  facts: {len(FACTS)}  ·  episodes: 1  ·  events: 1  ·  chat log: empty  ·  traces: empty")
-    print("  SOUL.md and eval reports kept. Run `make dashboard` and start filming.")
+    print(f"  facts: {len(FACTS)}  ·  episodes: 1  ·  events: 1  ·  chat log: cleared")
+    print("  KEPT: SOUL.md, eval reports, traces/, and usage.jsonl (your real spend).")
+    print("  Run `make dashboard` and start filming.")
 
 
 if __name__ == "__main__":
