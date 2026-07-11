@@ -39,6 +39,13 @@ voice = [
     "faster-whisper>=1.0",
     "sounddevice>=0.4",
 ]
+# The beautiful neural voice (Kokoro-82M, Apache-2.0): British butler, fully
+# local/offline. Heavier — pulls torch (~2GB). `uv pip install '.[voice-neural]'`
+# and Waku auto-detects it; no env var needed.
+voice-neural = [
+    "kokoro>=0.9",
+    "soundfile>=0.12",
+]
 # Optional semantic-memory upgrade path: Supabase pgvector (see launch-rag)
 supabase = [
     "supabase>=2.0",

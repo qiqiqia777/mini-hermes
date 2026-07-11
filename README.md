@@ -287,13 +287,17 @@ WAKU_WAKE_WORD=""          waku voice     # push-to-talk instead (Enter, speak, 
 The matcher is ~15 transparent lines with a deterministic eval; it accepts cross-script
 variants (`"waku waku,わくわく"`). A trained openWakeWord model is the efficient v2 upgrade.
 
-**Nicer voice.** By default it uses macOS `say` (zero setup). Install the neural
-[Kokoro](https://github.com/hexgrad/kokoro) voice and it's picked up automatically — no env
-var needed:
+**A beautiful voice.** Out of the box it uses macOS `say` — and Waku auto-picks the nicest
+voice you have, preferring a downloaded Premium/Enhanced one (System Settings ▸ Accessibility
+▸ Spoken Content ▸ System Voice) over the robotic built-ins. For the real neural upgrade,
+install [Kokoro](https://github.com/hexgrad/kokoro) — a fully local, offline British-butler
+voice that's picked up automatically, no env var needed:
 
 ```bash
-uv pip install kokoro soundfile           # → the proper British-butler voice (bm_george)
+uv pip install '.[voice-neural]'          # neural Kokoro (bm_george); pulls torch (~2GB)
 ```
+
+Override either engine with `WAKU_VOICE` (a `say` voice name, or a Kokoro voice like `bf_emma`).
 
 ## Phone to laptop
 
