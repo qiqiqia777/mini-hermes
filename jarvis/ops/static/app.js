@@ -883,6 +883,13 @@ let mediaRec = null, audioChunks = [];
 async function toggleMic(){
   const btn = document.getElementById("mic"), input = document.getElementById("dmsg");
   if (mediaRec && mediaRec.state === "recording"){ mediaRec.stop(); return; }
+  const hint = (msg) => { input.placeholder = msg; setTimeout(()=>{ input.placeholder="Message Jarvis…"; }, 8000); };
+  // The mic API only exists in a normal, secure browser tab — not in IDE/embedded
+  // webviews (the common gotcha). Say so instead of failing silently.
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    hint("voice needs a normal browser tab at localhost:7777 — not the IDE preview pane");
+    return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({audio:true});
     mediaRec = new MediaRecorder(stream); audioChunks = [];
@@ -901,12 +908,10 @@ async function toggleMic(){
     mediaRec.start(); btn.classList.add("rec");
   } catch(e){
     if (!input) return;
-    // clearer guidance, and restore the normal placeholder after a moment so
-    // the input doesn't stay stuck on an error string.
-    input.placeholder = e && e.name === "NotAllowedError"
-      ? "allow microphone access for this page, then click the mic again"
-      : "mic unavailable: " + (e && e.message || e);
-    setTimeout(() => { input.placeholder = "Message Jarvis…"; }, 5000);
+    console.warn("mic error:", e);
+    hint(e && e.name === "NotAllowedError"
+      ? "mic blocked — click the lock icon in the address bar → allow Microphone → reload (macOS: also System Settings ▸ Privacy ▸ Microphone ▸ your browser)"
+      : "mic unavailable: " + (e && e.message || e));
   }
 }
 function wireMic(){ const b = document.getElementById("mic"); if (b) b.onclick = toggleMic; }
