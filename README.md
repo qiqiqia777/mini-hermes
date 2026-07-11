@@ -22,7 +22,13 @@ git clone https://github.com/ShenSeanChen/launch-jarvis && cd launch-jarvis
 uv venv && uv pip install -e .          # or: pip install -e .
 cp .env.example .env                    # pick a provider, paste ONE key
 make run                                # talk to your Jarvis in the terminal
+make dashboard                          # …or watch it all in the browser cockpit → localhost:7777
 ```
+
+`make run` and `make dashboard` are two doorways into the **same** local Jarvis (same
+`state.db`, same loop). `make dashboard` starts a tiny web server —
+`python -m jarvis.ops.dashboard` — on **your** machine; when you chat in the browser,
+*that process* runs the turn. Nothing leaves your laptop, and it's bound to `127.0.0.1`.
 
 Try: *"Remember that Alex prefers morning meetings."* Quit. Restart.
 *"Book a catch-up with Alex on Friday."* — it remembers, and it books 9am.
@@ -35,10 +41,13 @@ The loop speaks one dialect; a [~60-line adapter](jarvis/loop/models.py) covers 
 ## Watch the harness run — the dashboard
 
 ```bash
-make dashboard          # http://localhost:7777
+make dashboard          # starts a local server → http://localhost:7777
 ```
 
-This is the fastest way to *understand* the system. A chat dock sits on the right of
+This runs a small stdlib web server *you* own (`python -m jarvis.ops.dashboard`, bound to
+`127.0.0.1`). The browser is just the UI — the same Python process runs every turn, so
+chatting here is identical to `make run`, only with a live view. This is the fastest way to
+*understand* the system. A chat dock sits on the right of
 every tab — type or **speak** (local Whisper, no cloud) and watch it flow through the
 harness on the Overview diagram: the retrieval gate lights up, the loop calls a tool,
 the reply comes back, memory updates — the same pipeline every gateway drives. The whole
