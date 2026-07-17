@@ -408,23 +408,37 @@ The `waku` command is installed with the package; the `make` targets are equival
 | `make eval-judge` | LLM-as-judge evals (scored %) |
 | `make gate` | the release gate — both eval suites must pass |
 
-## Roadmap — on the whiteboard, coming soon
+## Roadmap — the whiteboard boxes beyond the flagship task
 
-A few boxes on the architecture chart are deliberately **skeletons** (see
-[`waku/tools/experimental.py`](waku/tools/experimental.py)) — the intent is drawn so the
-diagram maps to something, but they're not wired into the loop, so nothing is over-promised.
-They're OFF by default; `WAKU_EXPERIMENTAL=1` registers them (they just report "coming soon"),
-and the dashboard's **Tools** tab lists them under **Coming soon**.
+These live in [`waku/tools/experimental.py`](waku/tools/experimental.py), OFF by default —
+`WAKU_EXPERIMENTAL=1` registers them.
 
-| Whiteboard box | Skeleton tool | Why it's a skeleton (not built yet) |
+**Sub-Agents is now LIVE.** `delegate_task` hands a coding job to
+[pi](https://github.com/earendil-works/pi) — Mario Zechner's minimal open-source coding agent —
+through its headless print mode (`pi -p "task"`). Waku stays the orchestrator (memory, context,
+evals); pi is the specialist contractor (read/bash/edit/write). Try it:
+
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+WAKU_EXPERIMENTAL=1 uv run waku
+# "have pi fix the failing test in ~/my-project"
+```
+
+The full pi transcript lands in `.waku/outbox/delegate-*.log`; tune the budget with
+`WAKU_DELEGATE_TIMEOUT` (default 300s).
+
+The rest are still deliberate **skeletons** — the intent is drawn so the diagram maps to
+something, but nothing is over-promised (they report "coming soon", and the dashboard's
+**Tools** tab lists them under **Coming soon**):
+
+| Whiteboard box | Tool | Status |
 |---|---|---|
-| Sub-Agents | `delegate_task` | multi-agent coordination — kept out to keep the core single-agent and readable |
-| Terminal tool | `run_command` | needs a real sandbox + safety surface first |
-| Browser tool | `browse_web` | `search_web` already covers read-only lookups; full browsing is more |
-| Cron Job | `schedule_task` | `make brief` + a system cron line already does scheduled runs today |
+| Sub-Agents | `delegate_task` | **live** — delegates coding tasks to pi |
+| Terminal tool | `run_command` | skeleton — needs a real sandbox + safety surface first |
+| Browser tool | `browse_web` | skeleton — `search_web` already covers read-only lookups |
+| Cron Job | `schedule_task` | skeleton — `make brief` + a system cron line covers it today |
 
-The point of a teaching repo is a readable core; these are the natural next tools to add, shown
-as the shape they'll take.
+The point of a teaching repo is a readable core; these come alive one at a time, tested.
 
 ## Upgrade paths (when you outgrow the defaults)
 
