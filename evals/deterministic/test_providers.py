@@ -73,3 +73,15 @@ def test_model_listing_falls_back_without_a_catalog(name, monkeypatch):
     assert result["listed"] is False
     ids = [m["id"] for m in result["models"]]
     assert PROVIDERS[name].model in ids
+
+
+def test_price_for_layers_model_over_provider():
+    """Receipts correctness: a kimi-k3 run must be priced at K3's $3/$15, not
+    the kimi provider's K2.7 rate — and unknown models still fall back to the
+    provider estimate. (Live-catalog and :free paths are covered above.)"""
+    from waku.ops.dashboard import MODEL_PRICING, PRICING, price_for
+
+    assert price_for("kimi", "kimi-k3") == MODEL_PRICING["kimi-k3"] == (3.0, 15.0)
+    assert price_for("kimi", "kimi-k2.7") == (0.6, 2.5)
+    assert price_for("kimi", "some-future-model") == PRICING["kimi"]
+    assert price_for("openrouter", "whatever:free") == (0.0, 0.0)

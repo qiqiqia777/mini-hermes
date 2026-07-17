@@ -131,13 +131,28 @@ PRICING = {
 _price_cache: dict[str, tuple[float, float]] = {}
 
 
+# Known per-model prices for endpoints with no listable catalog (the anthropic
+# wire has no /models). Checked before the provider-level fallback so e.g. a
+# kimi-k3 run ($3/$15) isn't priced at the kimi-k2.7 rate ($0.6/$2.5).
+MODEL_PRICING = {
+    "kimi-k3": (3.0, 15.0),          # per Moonshot tech blog, Jul 2026
+    "kimi-k2.7": (0.6, 2.5),
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-sonnet-5": (3.0, 15.0),
+    "claude-haiku-4-5-20251001": (1.0, 5.0),
+}
+
+
 def price_for(provider: str, model: str) -> tuple[float, float]:
     """$/M tokens (in, out) for one call: the catalog's per-model price when
-    known, $0 for ":free" ids, else the provider-level PRICING estimate."""
+    known, $0 for ":free" ids, a known MODEL_PRICING id, else the provider-level
+    PRICING estimate."""
     if model in _price_cache:
         return _price_cache[model]
     if model.endswith(":free"):
         return (0.0, 0.0)
+    if model in MODEL_PRICING:
+        return MODEL_PRICING[model]
     return PRICING.get(provider, (3.0, 15.0))
 
 

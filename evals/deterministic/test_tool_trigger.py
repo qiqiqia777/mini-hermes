@@ -121,3 +121,7 @@ def test_dataset_case(case, tmp_path):
             assert needle.lower() in str(args.get(key, "")).lower(), (
                 f"expected '{needle}' in args[{key}], got: {args.get(key)}"
             )
+        # multi-tool cases (pokemon-team, worldcup-final): the loop must have
+        # actually looped, not satisfied one expectation and stopped
+        want = case.get("expect_min_tool_calls", 0)
+        assert len(fired) >= want, f"only {len(fired)} tool calls, wanted >= {want}"
