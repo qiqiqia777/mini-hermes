@@ -450,8 +450,8 @@ function archSVG(d){
     <!-- The gateway is the door IN and OUT: the reply leaves through the very
          gateway it arrived at (Telegram sends it, the CLI prints it, voice
          speaks it, the dashboard streams it). A clean over-the-top arc. -->
-    <path class="flow" data-edge="e-reply-gw" d="M604 82 C548 40 172 40 100 70" marker-end="url(#arr)"/>
-    ${flowLbl(352,32,"reply, out the same gateway","middle")}
+    <path class="flow" data-edge="e-reply-gw" d="M610 84 C610 40 596 34 566 34 L130 34 C104 34 96 44 96 72" marker-end="url(#arr)"/>
+    ${flowLbl(348,28,"reply, out the same gateway","middle")}
     <!-- every turn is saved for consolidation: down a clear right lane,
          then left into the consolidation box -->
     <path class="flow dash" data-edge="e-reply-save" d="M650 136 C660 150 660 200 660 600 L614 600" marker-end="url(#arr)"/>
