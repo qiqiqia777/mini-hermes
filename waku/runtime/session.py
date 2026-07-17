@@ -68,7 +68,12 @@ class Session:
         # Local time WITH the timezone name — enough to resolve "in 30 minutes".
         now = datetime.now().astimezone()
         parts = [load_soul(self.settings),
-                 f"\nRight now it is {now:%A, %Y-%m-%d %H:%M} ({now:%Z}, UTC{now:%z})."]
+                 f"\nRight now it is {now:%A, %Y-%m-%d %H:%M} ({now:%Z}, UTC{now:%z}).",
+                 # the agent should know its own brain — "what model are you?"
+                 # is the first question every curious user asks
+                 f"Your model: you are running on '{self.settings.model}' via the "
+                 f"'{self.settings.provider}' provider, inside Waku, a local-first "
+                 f"open-source agent harness (github.com/ShenSeanChen/waku-agent)."]
 
         if self.memory is not None:
             # Hero moment #1: a cheap judge decides IF we retrieve at all —
