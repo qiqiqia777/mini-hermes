@@ -41,6 +41,17 @@ STATIC = Path(__file__).resolve().parent / "static"
 # so chats run one at a time — correct for a single-user local tool.
 _agent = None
 _agent_lock = threading.Lock()
+_dashboard_session = None  # this dashboard run's chat thread (dated; stable across refreshes)
+
+
+def _dash_session() -> str:
+    """The thread new dashboard chats belong to — a dated id fixed for this
+    server process, so a page refresh keeps the same conversation but a new
+    run (or day) starts a fresh one. Never the eternal 'default'."""
+    global _dashboard_session
+    if _dashboard_session is None:
+        _dashboard_session = datetime.now().strftime("dashboard-%Y%m%d-%H%M%S")
+    return _dashboard_session
 
 
 def _get_agent():
@@ -52,6 +63,10 @@ def _get_agent():
         settings.ensure_home()
         conn = connect(settings.home, check_same_thread=False)
         _agent = Waku(settings=settings, conn=conn)
+        # A fresh dashboard = a fresh thread, not the eternal "default" that
+        # every chat since day one piled into. Same id collect() reports, so
+        # the browser's dock restores the right conversation on refresh.
+        _agent.session.session_id = _dash_session()
     return _agent
 
 
@@ -390,7 +405,7 @@ def collect() -> dict:
         "chat_pending": conn.execute("SELECT COUNT(*) FROM chat_log WHERE consolidated=0").fetchone()[0],
         "chat_log": rows("SELECT role, content, consolidated, source, session_id, created_at FROM chat_log ORDER BY id DESC LIMIT 80")[::-1],
         "sessions": session_list(conn),
-        "current_session": (_agent.session.session_id if _agent is not None else "default"),
+        "current_session": (_agent.session.session_id if _agent is not None else _dash_session()),
         "consolidate_every": settings.consolidate_every,
         "calendar": rows('SELECT title, start, "end", attendees, created_at FROM calendar_events ORDER BY start'),
         "outbox": outbox,

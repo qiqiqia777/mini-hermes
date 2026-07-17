@@ -1083,11 +1083,28 @@ function tickLive(){
   document.getElementById("sub").innerHTML =
     `<span class="live"><span class="dot"></span>live</span> · updated ${ago}s ago · ${esc(D.home)}`;
 }
+let dockRestored = false;
+async function restoreDock(){
+  // On page load the dock is empty even though the current thread has messages
+  // — restore them so a refresh never looks like it lost the chat.
+  dockRestored = true;
+  const sid = D && D.current_session;
+  if (!sid || CHAT.length) return;
+  SESSION = sid;
+  const r = await postJSON("/api/session", {action:"history", id:sid});
+  if (r.history && r.history.length && !CHAT.length){
+    r.history.forEach(m => CHAT.push(m.role==="user"
+      ? {role:"user", text:m.content}
+      : {role:"assistant", reply:m.content, historical:true}));
+    syncChatLogs();
+  }
+}
 async function refresh(){
   try {
     D = await (await fetch("/api/data")).json(); lastFetch = Date.now();
     render(); tickLive();
     syncLiveView();   // live-update an opened conversation (e.g. new phone messages)
+    if (!dockRestored) restoreDock();
   } catch(e){ /* server restarting — keep showing last data */ }
 }
 // --- resizable columns: drag the thin handle between nav|main and main|dock.
