@@ -46,7 +46,16 @@ class Waku:
         telegram / dashboard), so the unified chat can show its origin.
         `stream=True` streams the reply text token by token to the observer.
         Everything that happens is both shown (observer) and recorded (tracer)."""
-        notify = compose(observer, self.tracer.event)
+        # capture the gate decision as it flows by, so we can persist it with
+        # the turn (the reopened-thread telemetry the dashboard shows live)
+        import time
+        captured: dict = {}
+
+        def _capture(kind, ev):
+            if kind == "gate":
+                captured["gate"] = {"decision": ev.get("decision"), "reason": ev.get("reason")}
+        notify = compose(observer, self.tracer.event, _capture)
+        t0 = time.perf_counter()
 
         with self.tracer.turn(user_message):
             system = self.session.build_system(user_message, notify=notify)
@@ -69,8 +78,19 @@ class Waku:
                 stream=stream,
             )
 
+            def _status(out: str) -> str:
+                low = (out or "").lower()
+                return "error" if ("failed" in low or "timed out" in low
+                                   or low.startswith("error")) else "ok"
+            meta = {
+                "gate": captured.get("gate"),
+                "iterations": result.iterations,
+                "latency_ms": int((time.perf_counter() - t0) * 1000),
+                "tools": [{"tool": c["tool"], "status": _status(c["output"])}
+                          for c in result.tool_calls],
+            }
             self.session.add_exchange(user_message, result.reply, tool_calls=result.tool_calls,
-                                      source=source)
+                                      source=source, meta=meta)
             if self.memory is not None:
                 self.memory.maybe_consolidate(notify=notify)
                 self.memory.export_markdown()   # keep MEMORY.md in sync

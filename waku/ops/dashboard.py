@@ -610,11 +610,13 @@ def session_action(payload: dict) -> dict:
         settings.ensure_home()
         conn = connect(settings.home)
         rows = conn.execute(
-            "SELECT role, content FROM chat_log WHERE session_id=? ORDER BY id",
+            "SELECT role, content, meta FROM chat_log WHERE session_id=? ORDER BY id",
             (payload.get("id") or "default",),
         ).fetchall()
         return {"ok": True, "session_id": payload.get("id") or "default",
-                "history": [{"role": r["role"], "content": r["content"]} for r in rows]}
+                "history": [{"role": r["role"], "content": r["content"],
+                             "meta": json.loads(r["meta"]) if r["meta"] else None}
+                            for r in rows]}
     with _agent_lock:
         agent = _get_agent()
         if action == "new":

@@ -256,13 +256,25 @@ const gateBadge = g => !g ? "" :
 
 // A tool call renders as a status row (dot + one-line summary); the raw output
 // hides behind a disclosure so an ugly osascript error never floods the page.
-const toolRow = x => `<div class="tool ${x.status}">
-  <div class="tool-head"><span class="dot ${x.status}"></span><code>${esc(x.tool)}</code>
-    <span style="color:var(--ink2)">${esc(x.summary)}</span></div>
-  <details><summary>args &amp; raw output</summary>
+const toolRow = x => `<div class="tool ${x.status||"ok"}">
+  <div class="tool-head"><span class="dot ${x.status||"ok"}"></span><code>${esc(x.tool)}</code>
+    ${x.summary?`<span style="color:var(--ink2)">${esc(x.summary)}</span>`:""}</div>
+  ${x.output!==undefined?`<details><summary>args &amp; raw output</summary>
     <pre>${esc(x.tool)}(${esc(JSON.stringify(x.args,null,1))})\n\n${esc(x.output)}</pre>
-  </details>
+  </details>`:""}
 </div>`;
+
+// A stored history row -> a CHAT item. Assistant rows with saved telemetry
+// (meta: gate/latency/iterations/tools) render as the FULL turn card, so a
+// reopened thread looks just like when it was live. Rows without meta (from
+// before this was saved, or another gateway) fall back to a plain card.
+function histItem(m){
+  if (m.role === "user") return {role:"user", text:m.content};
+  if (m.meta) return {role:"waku", reply:m.content, gate:m.meta.gate,
+                      tools:m.meta.tools, iterations:m.meta.iterations,
+                      latency_ms:m.meta.latency_ms};
+  return {role:"waku", reply:m.content, historical:true};
+}
 
 const turnCard = t => `<div class="card">
   <div class="u">${esc(t.user_message)}</div>
@@ -295,11 +307,11 @@ const gateSplit = s => {
 // --- Chat gateway: type here, watch the harness run (turns kept in memory)
 const CHAT = [];
 const chatTurnCard = t => `<div class="card">
-  ${t.gate?`<div class="stages"><span class="stage done">gate · ${esc(t.gate.decision)}</span>${(t.tools||[]).map(x=>`<span class="stage done">tool · ${esc(x.tool)}</span>`).join("")}<span class="stage done">reply</span></div>
-    <div class="meta" style="margin:0 0 6px">${esc(t.gate.reason||"")}</div>`:""}
-  ${(t.tools||[]).map(toolRow).join("")}
+  ${t.gate?`<div class="stages tele"><span class="stage done">gate · ${esc(t.gate.decision)}</span>${(t.tools||[]).map(x=>`<span class="stage done">tool · ${esc(x.tool)}</span>`).join("")}<span class="stage done">reply</span></div>
+    <div class="meta tele" style="margin:0 0 6px">${esc(t.gate.reason||"")}</div>`:""}
+  ${(t.tools||[]).length?`<div class="tele">${(t.tools||[]).map(toolRow).join("")}</div>`:""}
   <div class="r" style="margin-top:8px">${renderMarkdown(t.reply)}</div>
-  <div class="meta">${secs(t.latency_ms)} · ${t.iterations??"?"} iter${t.consolidation?` · consolidated ${t.consolidation.new_facts} fact(s)`:""}</div>
+  <div class="meta tele">${secs(t.latency_ms)} · ${t.iterations??"?"} iter${t.consolidation?` · consolidated ${t.consolidation.new_facts} fact(s)`:""}</div>
 </div>`;
 
 // While a turn runs we stream it live: stages light up as the harness reaches
@@ -552,8 +564,7 @@ async function switchSession(id){
   const r = await postJSON("/api/session", {action:"switch", id});
   if (r.ok){
     SESSION = r.session_id; CHAT.length = 0;
-    (r.history||[]).forEach(m => CHAT.push(m.role==="user"
-      ? {role:"user", text:m.content} : {role:"waku", reply:m.content, historical:true}));
+    (r.history||[]).forEach(m => CHAT.push(histItem(m)));
     syncChatLogs();
   }
   closeSessMenu();
@@ -575,8 +586,7 @@ async function syncLiveView(){
   if (!liveView || CHAT.some(m => m.pending)) return;
   const r = await postJSON("/api/session", {action:"history", id:liveView});
   if (!r.ok) return;
-  const fresh = (r.history||[]).map(m => m.role==="user"
-    ? {role:"user", text:m.content} : {role:"waku", reply:m.content, historical:true});
+  const fresh = (r.history||[]).map(histItem);
   if (fresh.length !== CHAT.length){   // only redraw when it actually changed
     CHAT.length = 0; fresh.forEach(m => CHAT.push(m)); syncChatLogs();
   }
@@ -618,6 +628,21 @@ function syncModelChip(){
   el.innerHTML = `<span class="mc-dot"></span><span class="mc-name">${esc(st.model || st.provider || "model")}</span><span class="mc-caret">&#9662;</span>`;
 }
 function closeModelMenu(){ const m = document.getElementById("modelmenu"); if (m) m.remove(); }
+
+// --- per-turn stats toggle (gate / seconds / iterations / tools). On by
+// default; the choice persists in localStorage. Hides the .tele blocks via a
+// body class so it applies to already-rendered turns too.
+function applyTele(){
+  const off = localStorage.getItem("waku_tele") === "0";
+  document.body.classList.toggle("no-tele", off);
+  const b = document.getElementById("teletoggle");
+  if (b) b.classList.toggle("on", !off);
+}
+function toggleTele(){
+  const off = localStorage.getItem("waku_tele") === "0";
+  localStorage.setItem("waku_tele", off ? "1" : "0");   // flip
+  applyTele();
+}
 async function toggleModelMenu(ev){
   ev.stopPropagation();
   if (document.getElementById("modelmenu")){ closeModelMenu(); return; }
@@ -1139,9 +1164,7 @@ async function restoreDock(){
   SESSION = sid;
   const r = await postJSON("/api/session", {action:"history", id:sid});
   if (r.history && r.history.length && !CHAT.length){
-    r.history.forEach(m => CHAT.push(m.role==="user"
-      ? {role:"user", text:m.content}
-      : {role:"assistant", reply:m.content, historical:true}));
+    r.history.forEach(m => CHAT.push(histItem(m)));
     syncChatLogs();
   }
 }
@@ -1150,6 +1173,7 @@ async function refresh(){
     D = await (await fetch("/api/data")).json(); lastFetch = Date.now();
     render(); tickLive();
     syncModelChip();  // keep the dock's model pill in sync with the active brain
+    applyTele();      // reflect the stats on/off choice (default on)
     syncLiveView();   // live-update an opened conversation (e.g. new phone messages)
     if (!dockRestored) restoreDock();
   } catch(e){ /* server restarting — keep showing last data */ }
