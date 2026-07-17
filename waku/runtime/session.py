@@ -119,6 +119,9 @@ class Session:
         self.history = []
         if self.memory is None:
             return
-        for user_msg, reply in self.memory.session_history(session_id):
+        # only the recent tail of a past conversation goes back into working
+        # memory (respond() also windows it, but don't hold the whole thread)
+        turns = self.settings.history_turns
+        for user_msg, reply in list(self.memory.session_history(session_id))[-turns:]:
             self.history.append({"role": "user", "content": user_msg})
             self.history.append({"role": "assistant", "content": reply})

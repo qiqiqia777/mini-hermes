@@ -50,7 +50,12 @@ class Waku:
 
         with self.tracer.turn(user_message):
             system = self.session.build_system(user_message, notify=notify)
-            messages = list(self.session.history) + [{"role": "user", "content": user_message}]
+            # Working memory is a bounded window: only the last N turns (2 rows
+            # each) enter the prompt, so context/cost/latency stay flat no matter
+            # how long the conversation runs. Older turns live in state.db and
+            # come back via the retrieval gate + episodic memory when relevant.
+            window = self.settings.history_turns * 2
+            messages = self.session.history[-window:] + [{"role": "user", "content": user_message}]
 
             result = run_loop(
                 client=self.client,

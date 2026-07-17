@@ -35,6 +35,12 @@ class Settings:
     # --- Loop guardrails
     max_iterations: int = field(default_factory=lambda: int(os.getenv("WAKU_MAX_ITERATIONS", "10")))
     max_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_MAX_TOKENS", "2048")))
+    # Working memory is a SLIDING WINDOW (like context RAM): only the last N
+    # turns go into the prompt. Older turns aren't lost — they're in state.db,
+    # distilled into facts by consolidation, and pulled back by the retrieval
+    # gate when relevant. Without this cap a long thread (esp. the always-on
+    # Telegram session) resends its whole history every turn until it explodes.
+    history_turns: int = field(default_factory=lambda: int(os.getenv("WAKU_HISTORY_TURNS", "12")))
 
     # --- Memory
     # Consolidate (distill chats into durable facts) only after N new exchanges.
