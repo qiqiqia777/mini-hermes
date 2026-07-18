@@ -29,7 +29,7 @@ from pathlib import Path
 
 from waku.config import load_settings
 from waku.db import connect
-from waku.ops import compare_history, scoring
+from waku.ops import compare_history, judge as judge_mod, scoring
 
 PORT = 7777
 # The frontend lives in its own files (static/index.html + style.css + app.js),
@@ -244,7 +244,7 @@ def compare_models(payload: dict) -> dict:
     return {"ok": True, "message": message, "results": results}
 
 
-def compare_stream(message: str, specs: list, emit) -> None:
+def compare_stream(message: str, specs: list, emit, judge: bool = False) -> None:
     """Race the models and stream each one's harness LIVE — gate decision and
     tool calls, per model — so every column plays out like the chat dock instead
     of a static 'racing…'. Each contestant runs the REAL loop (tools included) in
@@ -321,12 +321,15 @@ def compare_stream(message: str, specs: list, emit) -> None:
             if case:
                 passed, why = scoring.check_case(case, result.tool_calls)
                 completion = {"passed": passed, "why": why, "case": case["id"]}
+            # Quality: K3 grades the reply 0-10 when judging is on (own API call,
+            # so it's opt-in per race). A judge hiccup returns None, never fails.
+            quality = judge_mod.judge_reply(message, result.reply) if judge else None
             send("result", {"spec": spec, "provider": provider, "model": settings.model,
                             "reply": result.reply, "gate": (gate or None),
                             "iterations": result.iterations, "latency_ms": ms,
                             "tools": [{"tool": c["tool"]} for c in result.tool_calls],
                             "tokens_in": tin, "tokens_out": tout, "cost_usd": cost,
-                            "completion": completion})
+                            "completion": completion, "quality": quality})
         except Exception as exc:
             send("result", {"spec": spec, "provider": provider, "model": model, "error": str(exc)[:200]})
 
@@ -1368,7 +1371,8 @@ class Handler(BaseHTTPRequestHandler):
                 except (BrokenPipeError, ConnectionResetError):
                     pass
             try:
-                compare_stream((payload.get("message") or "").strip(), payload.get("models") or [], emit)
+                compare_stream((payload.get("message") or "").strip(), payload.get("models") or [],
+                               emit, judge=bool(payload.get("judge")))
             except Exception as exc:
                 emit("done", {"error": f"{type(exc).__name__}: {exc}"})
             return

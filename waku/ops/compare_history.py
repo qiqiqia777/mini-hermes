@@ -48,6 +48,7 @@ def _slim(r: dict) -> dict:
         "tools": [t.get("tool") for t in (r.get("tools") or [])],
         "error": r.get("error"),
         "completion": r.get("completion"),   # {passed, why, case} on a scored case, else None
+        "quality": r.get("quality"),         # {score, reason, judge} when K3-judged, else None
         "reply": (r.get("reply") or "")[:REPLY_CAP],
     }
 
@@ -105,7 +106,7 @@ def aggregate(runs: list[dict]) -> list[dict]:
             a = acc.setdefault(spec, {"spec": spec, "provider": r.get("provider"),
                                       "model": r.get("model"), "runs": 0, "ok": 0,
                                       "lat": 0, "tin": 0, "tout": 0, "cost": 0.0,
-                                      "passed": 0, "scored": 0})
+                                      "passed": 0, "scored": 0, "qsum": 0, "qn": 0})
             a["runs"] += 1
             if not r.get("error"):
                 a["ok"] += 1
@@ -118,11 +119,17 @@ def aggregate(runs: list[dict]) -> list[dict]:
             if c is not None:
                 a["scored"] += 1
                 a["passed"] += 1 if c.get("passed") else 0
+            q = r.get("quality")
+            if q is not None and q.get("score") is not None:
+                a["qsum"] += q["score"]
+                a["qn"] += 1
     out = [{"spec": a["spec"], "provider": a["provider"], "model": a["model"],
             "runs": a["runs"], "ok": a["ok"], "total_latency_ms": a["lat"],
             "total_tokens_in": a["tin"], "total_tokens_out": a["tout"],
             "total_tokens": a["tin"] + a["tout"],  # kept for back-compat / sorting
             "cases_passed": a["passed"], "cases_scored": a["scored"],
+            "quality_n": a["qn"],
+            "quality_avg": round(a["qsum"] / a["qn"], 1) if a["qn"] else None,
             "total_cost_usd": round(a["cost"], 4)} for a in acc.values()]
     out.sort(key=lambda x: x["total_cost_usd"])
     return out

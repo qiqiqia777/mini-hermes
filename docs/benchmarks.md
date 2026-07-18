@@ -296,5 +296,10 @@ Speed/Cost/Tokens.
 - ~~Battery section B (coding) + cross-model pi~~ — **done (CLI)**: `make
   shootout-coding` runs the coding battery through pi on any pinned model,
   scored by tests. A coding column in the *live arena* is the remaining piece.
-- Quality column (K3-as-judge) wired into the arena.
-- A cost-vs-quality visualization (§1) — the Pareto view, not just a table.
+- ~~Quality column (K3-as-judge) in the arena~~ — **done**: the "grade with K3"
+  toggle judges each reply 0-10 ([`waku/ops/judge.py`](../waku/ops/judge.py));
+  per-column badge + a "K3 grade" scoreboard column.
+- ~~A cost-vs-quality visualization~~ — **done**: the scoreboard leads with a
+  cost-vs-(quality|completion) scatter — cheap & good is top-left.
+- Remaining: a coding column in the live arena; more battery cases as the video
+  script firms up.
