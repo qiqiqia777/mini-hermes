@@ -184,6 +184,66 @@ def chat_stream(message: str, emit) -> None:
         "model": agent.settings.model,   # which brain answered — shown per card
     })
 
+
+def compare_models(payload: dict) -> dict:
+    """Race ONE message through several models AT ONCE and return a result per
+    model — reply, gate decision, tools, latency, tokens, cost. Each contestant
+    runs in its own throwaway temp home (same isolation as `make shootout`), so
+    nothing here touches your real memory or calendar; it's a benchmark, not a
+    conversation. Runs them in parallel threads."""
+    import tempfile
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from waku.app import Waku
+    from waku.config import Settings
+
+    message = (payload.get("message") or "").strip()
+    specs = payload.get("models") or []          # ["provider:model", ...]
+    if not message or not specs:
+        return {"error": "message and models required"}
+
+    def _tokens(home: Path) -> tuple[int, int]:
+        tin = tout = 0
+        path = home / "usage.jsonl"
+        if path.exists():
+            for line in path.read_text().splitlines():
+                try:
+                    r = json.loads(line)
+                    tin, tout = tin + r.get("in", 0), tout + r.get("out", 0)
+                except json.JSONDecodeError:
+                    pass
+        return tin, tout
+
+    def run(spec: str) -> dict:
+        provider, _, model = spec.partition(":")
+        home = Path(tempfile.mkdtemp(prefix=f"compare-{provider}-"))
+        gate: dict = {}
+        try:
+            settings = Settings(provider=provider, model=model, small_model="",
+                                home=home, apple_calendar=False)
+            app = Waku(settings=settings)
+            t0 = time.perf_counter()
+            result = app.respond(message, source="compare",
+                                 observer=lambda k, ev: gate.update(
+                                     decision=ev.get("decision"), reason=ev.get("reason"))
+                                 if k == "gate" else None)
+            ms = int((time.perf_counter() - t0) * 1000)
+            tin, tout = _tokens(home)
+            pin, pout = price_for(provider, settings.model)
+            return {"provider": provider, "model": settings.model, "reply": result.reply,
+                    "gate": (gate or None), "iterations": result.iterations, "latency_ms": ms,
+                    "tools": [{"tool": c["tool"]} for c in result.tool_calls],
+                    "tokens_in": tin, "tokens_out": tout,
+                    "cost_usd": round(tin / 1e6 * pin + tout / 1e6 * pout, 4)}
+        except Exception as exc:   # a broken contestant fails alone, not the whole race
+            return {"provider": provider, "model": model, "error": str(exc)[:200]}
+
+    with ThreadPoolExecutor(max_workers=min(len(specs), 6)) as ex:
+        results = list(ex.map(run, specs))   # ex.map preserves input order
+    return {"ok": True, "message": message, "results": results}
+
+
 # Rough $/million tokens (in, out) for a dollar ESTIMATE — the number humans
 # actually feel. Keyed by provider; deliberately approximate and labelled "est".
 PRICING = {
@@ -1130,7 +1190,8 @@ class Handler(BaseHTTPRequestHandler):
                 emit("done", {"error": f"{type(exc).__name__}: {exc}"})
             return
         routes = {"/api/chat": None, "/api/memory": memory_action, "/api/settings": apply_settings,
-                  "/api/query": run_query, "/api/session": session_action, "/api/pin": pin_action}
+                  "/api/query": run_query, "/api/session": session_action, "/api/pin": pin_action,
+                  "/api/compare": compare_models}
         if self.path not in routes:
             self.send_response(404)
             self.end_headers()
