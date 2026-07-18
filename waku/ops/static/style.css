@@ -219,6 +219,23 @@
   .modelmenu .mm-f{font-size:11px;color:var(--ink3);padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:4px}
   .modelmenu .mm-f code{font-size:11px;background:none;padding:0}
   .modelmenu .mm-f a{color:var(--accent);text-decoration:none}
+  .modelmenu .mm-prov{font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-right:5px}
+  .modelmenu .mm-def{font-size:9.5px;color:var(--accent);border:1px solid var(--accent);border-radius:99px;
+                     padding:0 5px;margin-left:6px;vertical-align:1px}
+  .pinrow{display:flex;align-items:center;gap:8px;padding:6px 2px;font-size:12.5px;border-bottom:1px solid var(--line)}
+  .pinrow:last-of-type{border-bottom:none}
+  .pinrow.on{background:var(--accent-soft);border-radius:7px;padding-left:8px;padding-right:8px}
+  .pinrow .mm-prov{font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;min-width:64px}
+  .pinstar{cursor:pointer;color:var(--ink3);font-size:15px;line-height:1;text-decoration:none;flex-shrink:0}
+  .pinstar.on{color:var(--accent)}
+  .pinstar:hover{color:var(--accent)}
+  .addmodel{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .addmodel select{background:var(--bg);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;
+          color:var(--ink);font-size:13px;outline:none;max-width:100%}
+  .addmodel #add-model{flex:1;min-width:180px}
+  .addmodel input{flex:1;min-width:180px;background:var(--bg);border:1px solid var(--line2);border-radius:8px;
+          padding:8px 12px;color:var(--ink);font-size:13px;outline:none}
+  .addmodel select:focus,.addmodel input:focus{border-color:var(--accent)}
   .sessitem{padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12.5px}
   .sessitem:hover{background:var(--accent-soft)}
   .sessitem.on{background:var(--accent-soft);color:var(--accent)}

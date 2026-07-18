@@ -45,17 +45,47 @@ _dashboard_session = None  # this dashboard run's chat thread (dated; stable acr
 
 
 def _dash_session() -> str:
-    """The thread new dashboard chats belong to — a dated id fixed for this
-    server process, so a page refresh keeps the same conversation but a new
-    run (or day) starts a fresh one. Never the eternal 'default'."""
+    """The thread new dashboard chats belong to. Resolved once per process:
+    RESUME the most recent recent dashboard thread (so a restart keeps the chat
+    on screen), else start a fresh dated one. Never the eternal 'default'."""
     global _dashboard_session
     if _dashboard_session is None:
-        _dashboard_session = datetime.now().strftime("dashboard-%Y%m%d-%H%M%S")
+        try:
+            conn = connect(load_settings().home)
+            _dashboard_session = _resume_or_new_session(conn)
+            conn.close()
+        except Exception:
+            _dashboard_session = datetime.now().strftime("dashboard-%Y%m%d-%H%M%S")
     return _dashboard_session
 
 
+def _resume_or_new_session(conn) -> str:
+    """Pick this run's thread: RESUME the most recent dashboard thread if its
+    last message is still fresh (within the idle window), else start a new dated
+    one. Without this, every server restart minted a brand-new empty thread and
+    the visible chat 'vanished' (it was only parked under the old id). An idle
+    gap still rotates — that's _maybe_rotate_session's job once we're running."""
+    idle_min = int(os.getenv("WAKU_SESSION_IDLE_MINUTES", "60"))
+    # Match by source, not id prefix: "+ New chat" makes 's-...' ids, so a
+    # 'dashboard-%' filter would orphan those threads on restart. Every dashboard
+    # message is tagged source='dashboard' — that's the reliable signal.
+    row = conn.execute(
+        "SELECT session_id, MAX(created_at) AS last_at FROM chat_log "
+        "WHERE source='dashboard' GROUP BY session_id "
+        "ORDER BY last_at DESC LIMIT 1"
+    ).fetchone()
+    if row and row["last_at"]:
+        try:
+            last = datetime.strptime(row["last_at"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            if idle_min <= 0 or (datetime.now(timezone.utc) - last).total_seconds() <= idle_min * 60:
+                return row["session_id"]
+        except ValueError:
+            pass
+    return datetime.now().strftime("dashboard-%Y%m%d-%H%M%S")
+
+
 def _get_agent():
-    global _agent
+    global _agent, _dashboard_session
     if _agent is None:
         from waku.app import Waku
 
@@ -63,10 +93,11 @@ def _get_agent():
         settings.ensure_home()
         conn = connect(settings.home, check_same_thread=False)
         _agent = Waku(settings=settings, conn=conn)
-        # A fresh dashboard = a fresh thread, not the eternal "default" that
-        # every chat since day one piled into. Same id collect() reports, so
-        # the browser's dock restores the right conversation on refresh.
-        _agent.session.session_id = _dash_session()
+        # A dashboard run resumes its last recent thread (so a restart/refresh
+        # keeps the chat on screen), or starts fresh if that thread is idle.
+        # Same id collect() reports, so the dock restores the right conversation.
+        _dashboard_session = _resume_or_new_session(conn)
+        _agent.session.session_id = _dashboard_session
     return _agent
 
 
@@ -150,6 +181,7 @@ def chat_stream(message: str, emit) -> None:
         "consolidation": {"new_facts": cons["new_facts"]} if cons else None,
         "iterations": result.iterations,
         "latency_ms": latency_ms,
+        "model": agent.settings.model,   # which brain answered — shown per card
     })
 
 # Rough $/million tokens (in, out) for a dollar ESTIMATE — the number humans
@@ -598,6 +630,25 @@ def transcribe_audio(raw: bytes) -> dict:
             pass
 
 
+def _thread_history(conn, sid: str) -> list[dict]:
+    """The ONE way to load a thread for the chat dock: role + content + the
+    per-turn meta (gate/stats/tools/model) so every card renders in full.
+    id '__all__' returns the whole cross-thread timeline (like the Loop tab,
+    but as chat). Every history-loading path goes through here so they can't
+    drift apart (they used to: 'switch' dropped meta and showed only text)."""
+    if sid == "__all__":
+        rows = conn.execute(
+            "SELECT role, content, meta FROM chat_log ORDER BY id DESC LIMIT 200"
+        ).fetchall()[::-1]
+    else:
+        rows = conn.execute(
+            "SELECT role, content, meta FROM chat_log WHERE session_id=? ORDER BY id",
+            (sid,),
+        ).fetchall()
+    return [{"role": r["role"], "content": r["content"],
+             "meta": json.loads(r["meta"]) if r["meta"] else None} for r in rows]
+
+
 def session_action(payload: dict) -> dict:
     """Chat history control: start a new conversation, switch to a past one, or
     read a conversation's history (read-only, for the live inbox). Sessions live
@@ -609,14 +660,8 @@ def session_action(payload: dict) -> dict:
         settings = load_settings()
         settings.ensure_home()
         conn = connect(settings.home)
-        rows = conn.execute(
-            "SELECT role, content, meta FROM chat_log WHERE session_id=? ORDER BY id",
-            (payload.get("id") or "default",),
-        ).fetchall()
-        return {"ok": True, "session_id": payload.get("id") or "default",
-                "history": [{"role": r["role"], "content": r["content"],
-                             "meta": json.loads(r["meta"]) if r["meta"] else None}
-                            for r in rows]}
+        sid = payload.get("id") or "default"
+        return {"ok": True, "session_id": sid, "history": _thread_history(conn, sid)}
     with _agent_lock:
         agent = _get_agent()
         if action == "new":
@@ -626,10 +671,10 @@ def session_action(payload: dict) -> dict:
         if action == "switch":
             sid = payload.get("id") or "default"
             agent.session.switch(sid)
-            hist = [{"role": r, "content": c}
-                    for u, a in agent.memory.session_history(sid)
-                    for r, c in (("user", u), ("assistant", a))]
-            return {"ok": True, "session_id": sid, "history": hist}
+            # Same meta-rich rows as the read-only "history" action, so a
+            # switched thread renders its full turn cards (gate/stats/tools/
+            # model) — not just the text. (These two paths used to disagree.)
+            return {"ok": True, "session_id": sid, "history": _thread_history(agent.conn, sid)}
     return {"error": f"unknown action {action}"}
 
 
@@ -728,13 +773,15 @@ def memory_action(payload: dict) -> dict:
 _models_cache: dict[str, tuple[float, list]] = {}
 
 
-def list_models() -> dict:
-    """Model ids available on the ACTIVE provider, for the settings model
-    picker — the defaults are starting points, never the menu. Three sources:
-    an explicit Provider.catalog_url (anthropic, kimi), GET {base_url}/models
-    on OpenAI-compatible endpoints (OpenRouter, Gemini, any WAKU_BASE_URL), or
-    the two known defaults when no catalog exists. OpenRouter entries carry
-    free / tool-support / context metadata so the picker can surface the $0
+def list_models(provider: str | None = None) -> dict:
+    """Model ids available on a provider, for the settings model picker — the
+    defaults are starting points, never the menu. Pass `provider` to list ANY
+    provider's catalog (the "Your models" add-row picks a provider first);
+    without it, the ACTIVE provider is used. Three sources: an explicit
+    Provider.catalog_url (anthropic, kimi), GET {base_url}/models on
+    OpenAI-compatible endpoints (OpenRouter, Gemini, any WAKU_BASE_URL), or the
+    two known defaults when no catalog exists. OpenRouter entries carry free /
+    tool-support / context metadata so the picker can surface the $0
     tool-capable models. Cached 5 minutes."""
     import time
     import urllib.request
@@ -742,12 +789,16 @@ def list_models() -> dict:
     from waku.loop.models import PROVIDERS
 
     s = load_settings()
-    prov = PROVIDERS.get(s.provider)
-    base = s.base_url or (prov.base_url if prov else None)
+    # An explicit provider overrides the active one (and its custom base_url:
+    # WAKU_BASE_URL only applies to the provider it was set for).
+    name = provider or s.provider
+    prov = PROVIDERS.get(name)
+    base = (s.base_url if name == s.provider else None) or (prov.base_url if prov else None)
     out = {
+        "provider": name,
         "model": s.model or (prov.model if prov else ""),
         "small_model": s.small_model or (prov.small_model if prov else ""),
-        "endpoint": base or s.provider,
+        "endpoint": base or name,
     }
     # Where can this provider's models be listed? An explicit catalog_url wins
     # (kimi chats on the anthropic wire but lists on its OpenAI-compatible API;
@@ -758,14 +809,18 @@ def list_models() -> dict:
     elif prov is not None and prov.kind == "openai" and base:
         url = base.rstrip("/") + "/models"
     else:
-        known = dict.fromkeys([out["model"], out["small_model"]]
-                              + ([prov.model, prov.small_model] if prov else []))
+        # No catalog endpoint: fall back to the provider's own known defaults
+        # (not the active model, which belongs to a different provider).
+        known = dict.fromkeys([prov.model, prov.small_model] if prov else [])
+        if name == s.provider:
+            known = dict.fromkeys([out["model"], out["small_model"], *known])
         return {**out, "listed": False, "models": [{"id": m} for m in known if m]}
 
     cached = _models_cache.get(url)
     if cached and time.time() - cached[0] < 300:
         return {**out, "listed": True, "models": cached[1]}
-    key = s.api_key or os.getenv(prov.key_env, "")
+    # Use this provider's own key; s.api_key only holds the ACTIVE provider's.
+    key = (s.api_key if name == s.provider else "") or os.getenv(prov.key_env, "")
     # send both auth styles — Bearer for OpenAI-compatible catalogs, x-api-key +
     # version for Anthropic's; each server reads the header it knows
     req = urllib.request.Request(url, headers={
@@ -810,17 +865,89 @@ def list_models() -> dict:
     return {**out, "listed": True, "models": models}
 
 
+def _models_json() -> Path:
+    return load_settings().home / "models.json"
+
+
+def default_pinned_specs() -> list[str]:
+    """Starter shortlist before the user has curated their own: flagship + fast
+    for every provider that has a key set (so the switcher only shows models you
+    can actually use). Flagship comes first, so it's that provider's default."""
+    from waku.loop.models import PROVIDERS
+
+    specs = []
+    for name, prov in PROVIDERS.items():
+        if os.getenv(prov.key_env):
+            specs += [f"{name}:{m}" for m in prov.default_pair()]
+    return specs
+
+
+def pinned_specs() -> list[str]:
+    """The user's curated 'provider:model' shortlist (ordered), from
+    .waku/models.json. The chat switcher shows exactly these. Before they've
+    saved anything, fall back to the flagship+fast defaults."""
+    p = _models_json()
+    if p.exists():
+        try:
+            return json.loads(p.read_text()).get("pinned", [])
+        except (json.JSONDecodeError, OSError):
+            pass
+    return default_pinned_specs()
+
+
+def default_model_for(provider: str) -> str:
+    """A provider's default model = the FIRST one the user pinned for it.
+    Empty string means 'use the provider's built-in default'."""
+    for spec in pinned_specs():
+        p, _, m = spec.partition(":")
+        if p == provider and m:
+            return m
+    return ""
+
+
+def pin_action(payload: dict) -> dict:
+    """Manage the curated model shortlist: pin / unpin / make-default."""
+    action = payload.get("action")
+    provider, model = payload.get("provider", ""), payload.get("model", "")
+    if not provider or not model:
+        return {"error": "provider and model required"}
+    spec = f"{provider}:{model}"
+    specs = [s for s in pinned_specs() if s != spec]
+    if action == "pin":
+        specs.append(spec)
+    elif action == "default":
+        # move to the front of its provider's group -> becomes that provider's default
+        idx = next((i for i, s in enumerate(specs) if s.split(":", 1)[0] == provider), len(specs))
+        specs.insert(idx, spec)
+    elif action != "unpin":
+        return {"error": f"unknown action {action}"}
+    path = _models_json()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"pinned": specs}, indent=1))
+    return {"ok": True, **settings_info()}
+
+
 def settings_info() -> dict:
     """Current provider/model + which keys are set — masked to last-4, never
-    the full key."""
+    the full key. `pinned` is the user's curated model shortlist (the chat
+    switcher shows exactly these, across providers)."""
     from waku.loop.models import PROVIDERS
 
     s = load_settings()
     prov = PROVIDERS.get(s.provider)
+    # the curated shortlist, in order; the first pinned model per provider is
+    # that provider's default (used when you switch providers).
+    pinned, seen = [], set()
+    for spec in pinned_specs():
+        p, _, m = spec.partition(":")
+        if m:
+            pinned.append({"provider": p, "model": m, "default": p not in seen})
+            seen.add(p)
     return {
         "provider": s.provider,
         "model": s.model or (prov.model if prov else ""),
         "small_model": s.small_model or (prov.small_model if prov else ""),
+        "pinned": pinned,
         # a custom endpoint (e.g. OpenRouter) set via WAKU_BASE_URL / WAKU_API_KEY
         "base_url": s.base_url or "",
         "custom_key_set": bool(s.api_key),
@@ -859,13 +986,17 @@ def apply_settings(payload: dict) -> dict:
     updates = {"WAKU_PROVIDER": provider,
                "WAKU_MODEL": payload.get("model", "") or "",
                "WAKU_SMALL_MODEL": payload.get("small_model", "") or ""}
-    # Changing provider ALWAYS resets model overrides to the new provider's
-    # defaults. Model ids never transfer across endpoints (live bug: switching
-    # kimi->gemini carried gate model kimi-k3 and every turn 404'd against
-    # Gemini). Want a custom model on the new provider? Pick it after switching.
+    # Changing provider never carries a model across endpoints (live bug:
+    # kimi->gemini kept gate model kimi-k3 and every turn 404'd on Gemini). But
+    # if the user didn't newly type a model, use THIS provider's default (their
+    # first pinned model for it, else its built-in default) — "a default model
+    # per API key". An explicit model in the payload (e.g. from the chat pill)
+    # always wins.
     if provider != before["provider"]:
-        updates["WAKU_MODEL"] = ""
-        updates["WAKU_SMALL_MODEL"] = ""
+        if updates["WAKU_MODEL"] in ("", before["model"]):
+            updates["WAKU_MODEL"] = default_model_for(provider)
+        if updates["WAKU_SMALL_MODEL"] in ("", before["small_model"]):
+            updates["WAKU_SMALL_MODEL"] = ""
     for k, v in (payload.get("keys") or {}).items():
         if k in writable and v:  # only non-empty keys overwrite
             updates[k] = v
@@ -921,18 +1052,25 @@ def events_since(cursor):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def _send(self, body: bytes, ctype: str) -> None:
+    def _send(self, body: bytes, ctype: str, *, no_cache: bool = False) -> None:
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        # The frontend files (app.js/style.css) change as we develop; without
+        # this the browser serves a stale cached copy and edits look "missing".
+        if no_cache:
+            self.send_header("Cache-Control", "no-cache, must-revalidate")
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self):  # noqa: N802 — http.server API
         if self.path == "/api/data":
             self._send(json.dumps(collect(), default=str).encode(), "application/json")
-        elif self.path == "/api/models":
-            self._send(json.dumps(list_models()).encode(), "application/json")
+        elif self.path.startswith("/api/models"):
+            from urllib.parse import parse_qs, urlparse
+
+            prov = parse_qs(urlparse(self.path).query).get("provider", [None])[0]
+            self._send(json.dumps(list_models(prov)).encode(), "application/json")
         elif self.path.startswith("/api/events"):
             from urllib.parse import parse_qs, urlparse
 
@@ -958,7 +1096,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         ctype = {".css": "text/css", ".js": "text/javascript",
                  ".html": "text/html; charset=utf-8"}.get(target.suffix, "application/octet-stream")
-        self._send(target.read_bytes(), ctype)
+        self._send(target.read_bytes(), ctype, no_cache=True)
 
     def do_POST(self):  # noqa: N802 — local write endpoints
         length = int(self.headers.get("Content-Length", 0))
@@ -992,7 +1130,7 @@ class Handler(BaseHTTPRequestHandler):
                 emit("done", {"error": f"{type(exc).__name__}: {exc}"})
             return
         routes = {"/api/chat": None, "/api/memory": memory_action, "/api/settings": apply_settings,
-                  "/api/query": run_query, "/api/session": session_action}
+                  "/api/query": run_query, "/api/session": session_action, "/api/pin": pin_action}
         if self.path not in routes:
             self.send_response(404)
             self.end_headers()

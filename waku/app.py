@@ -88,6 +88,10 @@ class Waku:
                 "latency_ms": int((time.perf_counter() - t0) * 1000),
                 "tools": [{"tool": c["tool"], "status": _status(c["output"])}
                           for c in result.tool_calls],
+                # which brain answered this turn — so a reopened thread (or a
+                # thread you switched models mid-way) shows it per card.
+                "model": self.settings.model,
+                "provider": self.settings.provider,
             }
             self.session.add_exchange(user_message, result.reply, tool_calls=result.tool_calls,
                                       source=source, meta=meta)

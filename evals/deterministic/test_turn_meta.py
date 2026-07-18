@@ -28,6 +28,9 @@ def test_turn_meta_is_saved_with_gate_and_iterations(tmp_path):
     assert meta["iterations"] == 2                    # tool turn + final answer
     assert isinstance(meta["latency_ms"], int)
     assert [t["tool"] for t in meta["tools"]] == ["save_note"]
+    # which brain answered — shown per card, survives a reopened thread
+    assert meta["model"] == app.settings.model
+    assert meta["provider"] == app.settings.provider
 
 
 def test_no_tool_turn_still_saves_meta(tmp_path):

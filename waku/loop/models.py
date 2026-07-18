@@ -38,14 +38,30 @@ class Provider:
     # anthropic wire but lists models on its OpenAI-compatible API). The
     # defaults above are just starting points — any listed model is one click.
     catalog_url: str | None = None
+    # The two models the chat switcher pins by default for this provider: a
+    # flagship (top quality) and a fast one (cheap/low-latency). Distinct from
+    # model/small_model — e.g. anthropic's loop default is sonnet-5, but the
+    # flagship you'd showcase is opus-4.8. Blank falls back to model/small_model.
+    flagship: str = ""
+    fast: str = ""
+
+    def default_pair(self) -> list[str]:
+        """[flagship, fast], deduped — the switcher's default picks."""
+        pair = [self.flagship or self.model, self.fast or self.small_model]
+        return list(dict.fromkeys(m for m in pair if m))
 
 
 PROVIDERS: dict[str, Provider] = {
     "anthropic": Provider("anthropic", "ANTHROPIC_API_KEY", None,
                           "claude-sonnet-5", "claude-haiku-4-5-20251001",
-                          catalog_url="https://api.anthropic.com/v1/models"),
+                          catalog_url="https://api.anthropic.com/v1/models",
+                          flagship="claude-opus-4-8", fast="claude-sonnet-5"),
     "openai":    Provider("openai", "OPENAI_API_KEY", None,
-                          "gpt-5.6", "gpt-5.6-luna"),
+                          "gpt-5.6", "gpt-5.6-luna",
+                          # base_url is None (SDK default endpoint), so the
+                          # picker can't derive {base}/models — point it at
+                          # OpenAI's catalog explicitly, like anthropic/kimi.
+                          catalog_url="https://api.openai.com/v1/models"),
     # one key, every lab's models, and a $0 tier: the default models below are
     # free ids (":free" suffix). Rate-limited (~50 req/day without credits).
     "openrouter": Provider("openai", "OPENROUTER_API_KEY", "https://openrouter.ai/api/v1",
@@ -53,7 +69,10 @@ PROVIDERS: dict[str, Provider] = {
                            "google/gemma-4-26b-a4b-it:free"),
     "gemini":    Provider("openai", "GEMINI_API_KEY",
                           "https://generativelanguage.googleapis.com/v1beta/openai/",
-                          "gemini-3.5-flash", "gemini-3.1-flash-lite"),
+                          "gemini-3.5-flash", "gemini-3.1-flash-lite",
+                          # Google's Pro tier isn't "gemini-3.5-pro" (that id
+                          # 404s); the current Pro is gemini-3.1-pro-preview.
+                          flagship="gemini-3.1-pro-preview", fast="gemini-3.5-flash"),
     "deepseek":  Provider("openai", "DEEPSEEK_API_KEY", "https://api.deepseek.com",
                           "deepseek-v4-pro", "deepseek-v4-pro"),
     "minimax":   Provider("anthropic", "MINIMAX_API_KEY", "https://api.minimaxi.com/anthropic",
@@ -63,7 +82,8 @@ PROVIDERS: dict[str, Provider] = {
     # checked). Override with WAKU_SMALL_MODEL=kimi-k3 if your key is K3-only.
     "kimi":      Provider("anthropic", "MOONSHOT_API_KEY", "https://api.moonshot.ai/anthropic",
                           "kimi-k3", "kimi-k2.6",
-                          catalog_url="https://api.moonshot.ai/v1/models"),
+                          catalog_url="https://api.moonshot.ai/v1/models",
+                          flagship="kimi-k3", fast="kimi-k2.7-code-highspeed"),
     "glm":       Provider("anthropic", "ZHIPU_API_KEY", "https://api.z.ai/api/anthropic",
                           "glm-5.2", "glm-5-turbo"),
 }

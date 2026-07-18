@@ -147,10 +147,13 @@ let catFilter = {q: "", free: false, tools: false};
 
 function modelRow(m, st){
   const cur = m.id === st.model, curGate = m.id === st.small_model;
+  const isPinned = (st.pinned || []).some(p => p.provider === st.provider && p.model === m.id);
   const price = m.free ? "free" : (m.price_out != null ? `$${m.price_in}/$${m.price_out} per M` : "");
   const tags = [price, m.context ? Math.round(m.context/1000) + "k ctx" : ""]
                .filter(Boolean).join(" · ");
   return `<div class="tool" style="display:flex;align-items:center;gap:8px;padding:6px 8px">
+    <a class="pinstar ${isPinned?"on":""}" title="${isPinned?"pinned to Your models — click to remove":"pin to Your models (shows in chat switcher)"}"
+       onclick="pinModel('${esc(st.provider)}','${esc(m.id)}','${isPinned?"unpin":"pin"}')">${isPinned?"★":"☆"}</a>
     <code style="flex:1;word-break:break-all">${esc(m.id)}</code>
     <span class="meta" style="margin:0;white-space:nowrap">${esc(tags)}</span>
     ${m.reasoning ? `<span class="srcpill apple" title="thinks out loud before answering: fine for the loop, a poor fit for the gate's tiny token budget">reasoning</span>` : ""}
@@ -248,6 +251,72 @@ async function switchModel(id, asGate){
   if (!r.error){ editing = false; await refresh(); }
 }
 
+// "Your models" — the curated shortlist the chat pill shows, spanning every
+// provider. The first pinned model per provider is that provider's default
+// (used when you switch to it). pin/unpin/default all POST /api/pin.
+function yourModelsCard(st){
+  const pinned = st.pinned || [];
+  const providers = (st.providers || []).map(p => p.name);
+  const rows = pinned.map(p => `
+    <div class="pinrow ${(p.provider===st.provider && p.model===st.model)?"on":""}">
+      <span class="mm-prov">${esc(p.provider)}</span>
+      <code style="flex:1;word-break:break-all">${esc(p.model)}</code>
+      ${p.default ? `<span class="srcpill" title="this provider's default model">default</span>`
+                  : `<a class="reveal" onclick="pinModel('${esc(p.provider)}','${esc(p.model)}','default')" title="make this ${esc(p.provider)}'s default">make default</a>`}
+      <a class="reveal" onclick="pinModel('${esc(p.provider)}','${esc(p.model)}','unpin')" title="remove from your list">remove</a>
+    </div>`).join("") || `<div class="meta">No models pinned yet — add one below.</div>`;
+  // The add row is self-contained: pick any provider + type/choose a model id,
+  // then Add. Works even for providers with no live catalog. The datalist
+  // suggests the CURRENT provider's models (the only one we've fetched).
+  const provOpts = providers.map(n => `<option value="${esc(n)}" ${n===st.provider?"selected":""}>${esc(n)}</option>`).join("");
+  // Populate the model <select> for the initially-selected provider once the
+  // card is in the DOM (a fresh fetch of that provider's catalog).
+  setTimeout(() => loadAddModels(st.provider), 0);
+  return `<h2>Your models <span class="meta" style="font-weight:400">— what the chat switcher shows</span></h2>
+    <div class="card">
+      ${rows}
+      <div class="addmodel">
+        <select id="add-prov" onfocus="markEditing()" onchange="loadAddModels(this.value)">${provOpts}</select>
+        <select id="add-model"><option value="">loading models…</option></select>
+        <button class="save" onclick="addPinnedModel()">Add</button>
+      </div>
+      <div class="meta" style="margin-top:6px" id="add-msg">Pick a provider, choose a model, then Add.</div>
+    </div>`;
+}
+
+// Fill the add-row model <select> with a provider's catalog (any provider, not
+// just the active one — the backend takes a ?provider= override).
+async function loadAddModels(provider){
+  const sel = document.getElementById("add-model");
+  const msg = document.getElementById("add-msg");
+  if (!sel) return;
+  sel.innerHTML = `<option value="">loading ${esc(provider)} models…</option>`;
+  let data;
+  try { data = await (await fetch("/api/models?provider=" + encodeURIComponent(provider))).json(); }
+  catch(e){ sel.innerHTML = `<option value="">couldn't load — pick another provider</option>`; return; }
+  const ms = data.models || [];
+  sel.innerHTML = `<option value="">choose a model…</option>` + ms.map(m => {
+    const meta = [m.free ? "free" : (m.price_out != null ? `$${m.price_in}/$${m.price_out}` : ""),
+                  m.context ? Math.round(m.context/1000) + "k" : ""].filter(Boolean).join(" · ");
+    return `<option value="${esc(m.id)}">${esc(m.id)}${meta ? "  ("+esc(meta)+")" : ""}</option>`;
+  }).join("");
+  if (msg) msg.innerHTML = data.listed
+    ? `${ms.length} models on <b>${esc(provider)}</b>. Choose one and Add — or star models in the catalog below.`
+    : `No live catalog for <b>${esc(provider)}</b> (only its defaults shown). Set its API key to list more.`;
+}
+
+async function addPinnedModel(){
+  const provider = document.getElementById("add-prov")?.value;
+  const model = document.getElementById("add-model")?.value;
+  if (!provider || !model) return;
+  await pinModel(provider, model, "pin");   // refreshes; the row appears in the list
+}
+
+async function pinModel(provider, model, action){
+  const r = await postJSON("/api/pin", {provider, model, action});
+  if (!r.error){ editing = false; await refresh(); }
+}
+
 const money = n => "$" + (n < 0.01 ? n.toFixed(4) : n.toFixed(2));
 const secs = ms => ms==null ? "—" : (ms/1000).toFixed(1)+"s";
 
@@ -272,7 +341,7 @@ function histItem(m){
   if (m.role === "user") return {role:"user", text:m.content};
   if (m.meta) return {role:"waku", reply:m.content, gate:m.meta.gate,
                       tools:m.meta.tools, iterations:m.meta.iterations,
-                      latency_ms:m.meta.latency_ms};
+                      latency_ms:m.meta.latency_ms, model:m.meta.model};
   return {role:"waku", reply:m.content, historical:true};
 }
 
@@ -311,7 +380,7 @@ const chatTurnCard = t => `<div class="card">
     <div class="meta tele" style="margin:0 0 6px">${esc(t.gate.reason||"")}</div>`:""}
   ${(t.tools||[]).length?`<div class="tele">${(t.tools||[]).map(toolRow).join("")}</div>`:""}
   <div class="r" style="margin-top:8px">${renderMarkdown(t.reply)}</div>
-  <div class="meta tele">${secs(t.latency_ms)} · ${t.iterations??"?"} iter${t.consolidation?` · consolidated ${t.consolidation.new_facts} fact(s)`:""}</div>
+  <div class="meta tele">${secs(t.latency_ms)} · ${t.iterations??"?"} iter${t.model?` · ${esc(t.model)}`:""}${t.consolidation?` · consolidated ${t.consolidation.new_facts} fact(s)`:""}</div>
 </div>`;
 
 // While a turn runs we stream it live: stages light up as the harness reaches
@@ -580,6 +649,17 @@ async function openConversation(id){
   await switchSession(id);   // switch the agent so a reply continues this thread
   render();                  // reflect the active-session highlight in the inbox
 }
+// Read-only "everything" view: the full cross-thread timeline in the dock, like
+// the Loop tab but as chat. Doesn't switch the agent — your next message still
+// goes to the active thread; this is purely for reading your whole history.
+async function viewAllHistory(){
+  closeSessMenu();
+  document.body.classList.remove("dock-closed");
+  localStorage.setItem("dockClosed", "0");
+  liveView = "__all__";
+  const r = await postJSON("/api/session", {action:"history", id:"__all__"});
+  if (r.ok){ CHAT.length = 0; (r.history||[]).map(histItem).forEach(m => CHAT.push(m)); syncChatLogs(); }
+}
 // Re-pull the opened conversation each refresh so incoming messages from another
 // gateway (your phone) show up live — unless a turn is mid-stream in the dock.
 async function syncLiveView(){
@@ -598,13 +678,18 @@ function toggleSessMenu(ev){
   const sessions = (D && D.sessions) || [];
   const menu = document.createElement("div");
   menu.className = "sessmenu"; menu.id = "sessmenu";
-  menu.innerHTML = sessions.length ? sessions.map(s => {
+  // "All messages" shows the full cross-thread timeline (like the Loop tab, but
+  // as chat) — so your whole history is one scroll, not split across threads.
+  const allItem = `<div class="sessitem allitem ${liveView==='__all__'?'on':''}" onclick="viewAllHistory()">
+      <div><b>All messages</b> — full timeline</div>
+      <div class="sm">every thread together, newest last</div></div>`;
+  menu.innerHTML = allItem + (sessions.length ? sessions.map(s => {
     const tags = (s.sources||[]).map(src => `<span class="gwtag ${esc(src)}">${esc(src)}</span>`).join("");
     return `<div class="sessitem ${s.id===SESSION?"on":""}" onclick="openConversation('${esc(s.id)}')">
       <div>${esc(s.title||s.id)} ${tags}</div>
       <div class="sm">${s.messages} msg · ${esc((s.last_at||"").slice(0,16).replace("T"," "))}</div>
     </div>`;
-  }).join("") : `<div class="sessitem">no past conversations yet</div>`;
+  }).join("") : `<div class="sessitem">no past conversations yet</div>`);
   const r = ev.currentTarget.getBoundingClientRect();
   menu.style.top = (r.bottom+6)+"px";
   menu.style.left = Math.max(8, r.right-300)+"px";
@@ -643,35 +728,41 @@ function toggleTele(){
   localStorage.setItem("waku_tele", off ? "1" : "0");   // flip
   applyTele();
 }
-async function toggleModelMenu(ev){
+function toggleModelMenu(ev){
   ev.stopPropagation();
   if (document.getElementById("modelmenu")){ closeModelMenu(); return; }
   const st = (D && D.settings) || {};
+  const pinned = st.pinned || [];
+  const items = pinned.length ? pinned.map(p =>
+    `<div class="sessitem ${(p.provider===st.provider && p.model===st.model)?"on":""}"
+          onclick="switchTo('${esc(p.provider)}','${esc(p.model)}')">
+       <span class="mm-prov">${esc(p.provider)}</span> <span class="mm-id">${esc(p.model)}</span>${
+       p.default?'<span class="mm-def">default</span>':""}</div>`
+  ).join("") : `<div class="sessitem">No models pinned yet.</div>`;
   const menu = document.createElement("div");
   menu.className = "sessmenu modelmenu"; menu.id = "modelmenu";
-  menu.innerHTML = `<div class="mm-h">Model &middot; ${esc(st.provider || "")}</div><div class="mm-load">loading catalog&hellip;</div>`;
+  menu.innerHTML = `<div class="mm-h">Your models</div>${items}`
+    + `<div class="mm-f"><a href="#settings" onclick="closeModelMenu()">+ add models in Settings &rsaquo;</a></div>`;
   const r = ev.currentTarget.getBoundingClientRect();
   menu.style.top = (r.bottom + 6) + "px";
   menu.style.left = Math.max(8, r.right - 250) + "px";
   document.body.appendChild(menu);
-  let data;
-  try { data = await (await fetch("/api/models")).json(); }
-  catch(e){ menu.innerHTML = `<div class="mm-h">couldn't load models</div>`; return; }
-  if (!document.getElementById("modelmenu")) return;   // closed while loading
-  const cur = data.model;
-  const items = (data.models || []).map(m =>
-    `<div class="sessitem ${m.id===cur?"on":""}" onclick="pickModel('${esc(m.id)}')">
-       <span class="mm-id">${esc(m.id)}</span>${m.free?'<span class="mm-free">free</span>':""}</div>`
-  ).join("") || `<div class="sessitem">no catalog — type a model id in Settings</div>`;
-  menu.innerHTML = `<div class="mm-h">Model &middot; ${esc(st.provider || "")}</div>${items}`
-    + `<div class="mm-f">gate: <code>${esc(data.small_model || "—")}</code>`
-    + ` &middot; <a href="#settings" onclick="closeModelMenu()">provider &amp; keys &rsaquo;</a></div>`;
 }
-async function pickModel(id){
-  const el = document.getElementById("modelchip");
+// Switch BOTH provider and model in one click (a pinned model can be any
+// provider). Same-provider switch keeps the gate model; cross-provider lets the
+// new provider's default gate model take over.
+async function switchTo(provider, model){
+  const st = (D && D.settings) || {};
+  const chip = document.getElementById("modelchip");
+  const name = chip && chip.querySelector(".mc-name");
   closeModelMenu();
-  if (el) el.querySelector(".mc-name") && (el.querySelector(".mc-name").textContent = "switching…");
-  await switchModel(id);   // posts /api/settings + refresh(); syncModelChip runs on refresh
+  if (name) name.textContent = "switching…";
+  const r = await postJSON("/api/settings", {
+    provider, model,
+    small_model: provider === st.provider ? st.small_model : "",
+    keys: {},
+  });
+  if (!r.error){ editing = false; modelCatalog = null; await refresh(); }
 }
 // --- read-only SQL console (item: "a simple query editor like Supabase")
 function qFill(sql){ const b=document.getElementById("sqlbox"); if(b){ b.value=sql; runQuery(); } }
@@ -885,6 +976,7 @@ const VIEWS = {
   settings(d){
     const st = d.settings || {providers:[]};
     let h = `<div class="card">Current: <b>${esc(st.provider)}</b> · loop brain <code>${esc(st.model)}</code> · gate &amp; summarizer <code>${esc(st.small_model)}</code><div class="meta" style="margin:4px 0 0">two jobs, two brains: the loop brain answers you; the small gate model decides memory retrieval and distills chats</div></div>`;
+    h += yourModelsCard(st);
     h += `<h2>Provider &amp; keys (BYOK)</h2><div class="card">
       <label class="fld">Provider
         <select id="set-provider" onfocus="markEditing()">${st.providers.map(p=>`<option value="${p.name}" ${p.name===st.provider?"selected":""}>${p.name}${p.name===st.provider?` — now: ${esc(st.model)}`:` — provider default: ${esc(p.default_model)}`}</option>`).join("")}</select></label>
