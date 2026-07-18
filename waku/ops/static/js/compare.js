@@ -129,10 +129,10 @@ function compareCol(res){
     <div class="cmp-h"><span class="mm-prov">${esc(res.provider)}</span> <code>${esc(res.model)}</code></div>
     <div class="cmp-stats">
       ${gateBadgeHtml}
-      <span class="chip">${secs(res.latency_ms)}</span>
+      <span class="chip ${compareState.sortBy==="latency"?"sorted":""}">${secs(res.latency_ms)}</span>
       <span class="chip">${res.iterations??"?"} iter</span>
-      <span class="chip money">${money(res.cost_usd||0)}</span>
-      <span class="chip">${(res.tokens_in||0)+(res.tokens_out||0)} tok</span>
+      <span class="chip ${compareState.sortBy==="cost"?"money":""}">${money(res.cost_usd||0)}</span>
+      <span class="chip ${compareState.sortBy==="tokens"?"sorted":""}">${(res.tokens_in||0)+(res.tokens_out||0)} tok</span>
     </div>
     ${tools?`<div class="stages" style="flex-wrap:wrap">${tools}</div>`:""}
     <div class="r cmp-reply">${renderMarkdown(res.reply||"")}</div>
