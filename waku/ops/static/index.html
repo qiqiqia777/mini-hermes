@@ -45,4 +45,14 @@
 </aside>
 <button id="nav-reopen" title="Show sidebar">&#9776;</button>
 <button id="dock-reopen" title="Open chat">&lsaquo; Chat</button>
-<script src="/static/app.js"></script></body></html>
+<!-- Frontend is split into focused classic scripts sharing one global scope
+     (no build step, no modules). Order matters only in that main.js runs the
+     bootstrap and must load LAST. See static/README.md for the file map. -->
+<script src="/static/js/util.js"></script>
+<script src="/static/js/memory.js"></script>
+<script src="/static/js/models.js"></script>
+<script src="/static/js/render.js"></script>
+<script src="/static/js/diagram.js"></script>
+<script src="/static/js/views.js"></script>
+<script src="/static/js/dock.js"></script>
+<script src="/static/js/main.js"></script></body></html>
