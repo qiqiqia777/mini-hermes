@@ -183,10 +183,16 @@ class OpenAICompatClient:
     def _call(self, kwargs: dict, **extra):
         """Run chat.completions.create with the max_tokens key-name fallback
         (older OpenAI-compatible endpoints only know max_tokens, not the newer
-        max_completion_tokens)."""
+        max_completion_tokens). Only retry when the error is ABOUT that param —
+        retrying on any error masked the real failure (e.g. a gpt-5.x call would
+        fail for some other reason, then the max_tokens retry buried it under a
+        confusing 'use max_completion_tokens' message)."""
         try:
             return self._client.chat.completions.create(**kwargs, **extra)
-        except Exception:
+        except Exception as exc:
+            m = str(exc).lower()
+            if "max_completion_tokens" not in m and "max_tokens" not in m:
+                raise
             k = dict(kwargs)
             k["max_tokens"] = k.pop("max_completion_tokens", None)
             return self._client.chat.completions.create(**k, **extra)

@@ -185,63 +185,78 @@ def chat_stream(message: str, emit) -> None:
     })
 
 
-def compare_models(payload: dict) -> dict:
-    """Race ONE message through several models AT ONCE and return a result per
-    model — reply, gate decision, tools, latency, tokens, cost. Each contestant
-    runs in its own throwaway temp home (same isolation as `make shootout`), so
-    nothing here touches your real memory or calendar; it's a benchmark, not a
-    conversation. Runs them in parallel threads."""
+def _compare_one(message: str, spec: str) -> dict:
+    """Run ONE message through ONE model in a throwaway temp home (same isolation
+    as `make shootout`, so it never touches your real memory/calendar), and
+    return its receipts — reply, gate, tools, latency, tokens, cost. A broken
+    contestant returns an {error} dict; it never raises."""
     import tempfile
     import time
-    from concurrent.futures import ThreadPoolExecutor
 
     from waku.app import Waku
     from waku.config import Settings
 
-    message = (payload.get("message") or "").strip()
-    specs = payload.get("models") or []          # ["provider:model", ...]
-    if not message or not specs:
-        return {"error": "message and models required"}
-
-    def _tokens(home: Path) -> tuple[int, int]:
+    provider, _, model = spec.partition(":")
+    home = Path(tempfile.mkdtemp(prefix=f"compare-{provider}-"))
+    gate: dict = {}
+    try:
+        settings = Settings(provider=provider, model=model, small_model="",
+                            home=home, apple_calendar=False)
+        app = Waku(settings=settings)
+        t0 = time.perf_counter()
+        result = app.respond(message, source="compare",
+                             observer=lambda k, ev: gate.update(
+                                 decision=ev.get("decision"), reason=ev.get("reason"))
+                             if k == "gate" else None)
+        ms = int((time.perf_counter() - t0) * 1000)
         tin = tout = 0
-        path = home / "usage.jsonl"
-        if path.exists():
-            for line in path.read_text().splitlines():
+        ledger = home / "usage.jsonl"
+        if ledger.exists():
+            for line in ledger.read_text().splitlines():
                 try:
                     r = json.loads(line)
                     tin, tout = tin + r.get("in", 0), tout + r.get("out", 0)
                 except json.JSONDecodeError:
                     pass
-        return tin, tout
+        pin, pout = price_for(provider, settings.model)
+        return {"spec": spec, "provider": provider, "model": settings.model, "reply": result.reply,
+                "gate": (gate or None), "iterations": result.iterations, "latency_ms": ms,
+                "tools": [{"tool": c["tool"]} for c in result.tool_calls],
+                "tokens_in": tin, "tokens_out": tout,
+                "cost_usd": round(tin / 1e6 * pin + tout / 1e6 * pout, 4)}
+    except Exception as exc:   # a broken contestant fails alone, not the whole race
+        return {"spec": spec, "provider": provider, "model": model, "error": str(exc)[:200]}
 
-    def run(spec: str) -> dict:
-        provider, _, model = spec.partition(":")
-        home = Path(tempfile.mkdtemp(prefix=f"compare-{provider}-"))
-        gate: dict = {}
-        try:
-            settings = Settings(provider=provider, model=model, small_model="",
-                                home=home, apple_calendar=False)
-            app = Waku(settings=settings)
-            t0 = time.perf_counter()
-            result = app.respond(message, source="compare",
-                                 observer=lambda k, ev: gate.update(
-                                     decision=ev.get("decision"), reason=ev.get("reason"))
-                                 if k == "gate" else None)
-            ms = int((time.perf_counter() - t0) * 1000)
-            tin, tout = _tokens(home)
-            pin, pout = price_for(provider, settings.model)
-            return {"provider": provider, "model": settings.model, "reply": result.reply,
-                    "gate": (gate or None), "iterations": result.iterations, "latency_ms": ms,
-                    "tools": [{"tool": c["tool"]} for c in result.tool_calls],
-                    "tokens_in": tin, "tokens_out": tout,
-                    "cost_usd": round(tin / 1e6 * pin + tout / 1e6 * pout, 4)}
-        except Exception as exc:   # a broken contestant fails alone, not the whole race
-            return {"provider": provider, "model": model, "error": str(exc)[:200]}
 
+def compare_models(payload: dict) -> dict:
+    """Race ONE message through several models AT ONCE (parallel threads) and
+    return every result together. Non-streaming; the dashboard uses the SSE
+    version so columns fill in as each finishes."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    message = (payload.get("message") or "").strip()
+    specs = payload.get("models") or []
+    if not message or not specs:
+        return {"error": "message and models required"}
     with ThreadPoolExecutor(max_workers=min(len(specs), 6)) as ex:
-        results = list(ex.map(run, specs))   # ex.map preserves input order
+        results = list(ex.map(lambda s: _compare_one(message, s), specs))
     return {"ok": True, "message": message, "results": results}
+
+
+def compare_stream(message: str, specs: list, emit) -> None:
+    """Same race, but emit each model's result the MOMENT it finishes so the
+    dashboard fills columns progressively — a slow or broken contestant (e.g. a
+    keyless provider) never blocks the rest from showing."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    if not message or not specs:
+        emit("done", {"error": "message and models required"})
+        return
+    with ThreadPoolExecutor(max_workers=min(len(specs), 6)) as ex:
+        futs = [ex.submit(_compare_one, message, s) for s in specs]
+        for fut in as_completed(futs):
+            emit("result", fut.result())
+    emit("done", {})
 
 
 # Rough $/million tokens (in, out) for a dollar ESTIMATE — the number humans
@@ -1202,6 +1217,25 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 chat_stream(message, emit)
             except Exception as exc:  # surface as a terminal event, don't 500
+                emit("done", {"error": f"{type(exc).__name__}: {exc}"})
+            return
+        # /api/compare/stream races several models, emitting each result as it lands.
+        if self.path == "/api/compare/stream":
+            payload = json.loads(self.rfile.read(length) or "{}")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+
+            def emit(kind, ev):
+                try:
+                    self.wfile.write(f"data: {json.dumps({'kind': kind, **ev}, default=str)}\n\n".encode())
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            try:
+                compare_stream((payload.get("message") or "").strip(), payload.get("models") or [], emit)
+            except Exception as exc:
                 emit("done", {"error": f"{type(exc).__name__}: {exc}"})
             return
         routes = {"/api/chat": None, "/api/memory": memory_action, "/api/settings": apply_settings,

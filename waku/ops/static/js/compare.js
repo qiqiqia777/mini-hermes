@@ -29,15 +29,39 @@ function toggleCompareModel(spec){
   render();
 }
 
+// Race over SSE so each column fills the MOMENT its model finishes — a slow or
+// broken contestant (e.g. a keyless provider) never blocks the others. Results
+// are keyed by spec into compareState.results; the grid redraws per event.
 async function runCompare(){
   const specs = [...compareState.picked];
   if (!compareState.message.trim() || !specs.length || compareState.running) return;
   editing = false;   // release the typing lock so the racing/results redraws show
-  compareState.running = true; compareState.results = null; render();
-  const r = await postJSON("/api/compare", {message: compareState.message, models: specs});
-  compareState.running = false;
-  compareState.results = r.error ? {error: r.error} : r.results;
+  compareState.running = true;
+  compareState.order = specs;      // columns to show, in picked order
+  compareState.results = {};       // spec -> result, filled as they land
+  compareState.raceError = null;
   render();
+  try {
+    const res = await fetch("/api/compare/stream", {method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({message: compareState.message, models: specs})});
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for(;;){
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0){
+        const line = buf.slice(0, i); buf = buf.slice(i+2);
+        if (!line.startsWith("data:")) continue;
+        let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch(e){ continue; }
+        if (ev.kind === "result" && ev.spec){ compareState.results[ev.spec] = ev; render(); }
+        else if (ev.kind === "done"){ if (ev.error) compareState.raceError = ev.error; }
+      }
+    }
+  } catch(e){ compareState.raceError = String(e); }
+  compareState.running = false; render();
 }
 
 // One contestant's result column. Reuses the shared formatters (gateBadge/
@@ -69,21 +93,27 @@ VIEWS.compare = function(d){
   }).join("") : `<div class="meta">No models pinned yet — add some in Settings.</div>`;
   const n = compareState.picked ? compareState.picked.size : 0;
 
+  // One column per raced model, in order. Each shows "racing…" until its result
+  // arrives over the stream, then flips to the receipts card.
   let grid = "";
-  if (compareState.running){
-    grid = `<div class="cmp-grid">${[...compareState.picked].map(s =>
-      `<div class="cmp-col"><div class="cmp-h"><code>${esc(s.split(":")[1])}</code></div>
-       <div class="meta">racing… <span class="caret"></span></div></div>`).join("")}</div>`;
-  } else if (compareState.results){
-    if (compareState.results.error) grid = `<div class="card empty">Error: ${esc(compareState.results.error)}</div>`;
-    else {
-      const rows = compareState.results;
-      const fastest = Math.min(...rows.filter(r=>!r.error).map(r=>r.latency_ms));
-      const cheapest = Math.min(...rows.filter(r=>!r.error).map(r=>r.cost_usd||0));
-      grid = `<div class="meta" style="margin:2px 0 8px">Isolated temp runs — nothing saved to your data.
-        Fastest: <b>${secs(fastest)}</b> · Cheapest: <b>${money(cheapest)}</b></div>
-        <div class="cmp-grid">${rows.map(compareCol).join("")}</div>`;
-    }
+  const order = compareState.order || [];
+  if (order.length){
+    const results = compareState.results || {};
+    const done = order.map(s => results[s]).filter(Boolean).filter(r => !r.error);
+    const summary = done.length
+      ? `Isolated temp runs — nothing saved to your data.
+         Fastest: <b>${secs(Math.min(...done.map(r=>r.latency_ms)))}</b> ·
+         Cheapest: <b>${money(Math.min(...done.map(r=>r.cost_usd||0)))}</b>
+         · ${done.length}/${order.length} done`
+      : `Racing ${order.length} models in isolated sandboxes — columns fill as each finishes.`;
+    const cols = order.map(s => {
+      const r = results[s];
+      if (r) return compareCol(r);
+      return `<div class="cmp-col"><div class="cmp-h"><span class="mm-prov">${esc(s.split(":")[0])}</span> <code>${esc(s.split(":").slice(1).join(":"))}</code></div>
+        <div class="meta">racing… <span class="caret"></span></div></div>`;
+    }).join("");
+    grid = `<div class="meta" style="margin:2px 0 8px">${summary}</div><div class="cmp-grid">${cols}</div>`
+      + (compareState.raceError ? `<div class="meta" style="color:var(--bad)">${esc(compareState.raceError)}</div>` : "");
   }
 
   return `<div class="card">
