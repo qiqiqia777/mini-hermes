@@ -91,9 +91,25 @@ async function runCompare(){
 // live like the chat dock — gate badge, tool chips light up, reply types in with
 // a caret. When it finishes (res.result) it flips to the full receipts card.
 // Reuses the shared formatters (renderMarkdown/secs/money).
+// Plain-English reason for the common, expected failure modes — so the arena
+// reads honestly on camera (the raw error stays below, muted).
+function compareErrorReason(err){
+  const e = (err || "").toLowerCase();
+  if (e.includes("reasoning_effort") || e.includes("/v1/responses")) return "can't call tools — reasoning model, needs the /v1/responses API";
+  if (e.includes("thought_signature")) return "can't call tools — missing thought_signature echo";
+  if (e.includes("credit") || e.includes("permission-denied") || e.includes("license")) return "no credits/licenses on this provider";
+  if (e.includes("max_tokens")) return "token-parameter mismatch";
+  if (e.includes("not found") || e.includes("no longer available")) return "model id not available";
+  return null;
+}
 function compareCol(res){
-  if (res.error) return `<div class="cmp-col err"><div class="cmp-h"><code>${esc(res.model)}</code>
-    <span class="srcpill apple">error</span></div><div class="meta">${esc(res.error)}</div></div>`;
+  if (res.error){
+    const why = compareErrorReason(res.error);
+    return `<div class="cmp-col err"><div class="cmp-h"><span class="mm-prov">${esc(res.provider)}</span> <code>${esc(res.model)}</code>
+      <span class="srcpill apple">error</span></div>
+      ${why?`<div class="meta" style="color:var(--bad)"><b>${esc(why)}</b></div>`:""}
+      <div class="meta" style="opacity:.7">${esc(res.error)}</div></div>`;
+  }
   const tools = (res.tools||[]).map(t => `<span class="stage done">tool · ${esc(t.tool)}</span>`).join("");
   const gateBadgeHtml = `<span class="badge ${res.gate&&res.gate.decision==="retrieve"?"retrieve":""}">gate · ${esc(res.gate?res.gate.decision:"…")}</span>`;
   if (res.streaming){
