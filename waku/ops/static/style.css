@@ -328,3 +328,6 @@
   .chip{font-size:11px;color:var(--ink2);border:1px solid var(--line2);border-radius:99px;padding:1px 8px}
   .chip.money{color:var(--good);border-color:var(--good)}
   .cmp-reply{margin-top:2px;font-size:13px;max-height:340px;overflow-y:auto}
+  .cmp-sort{cursor:pointer;color:var(--ink3);text-decoration:none}
+  .cmp-sort:hover{color:var(--accent)}
+  .cmp-sort.on{color:var(--accent);font-weight:600}

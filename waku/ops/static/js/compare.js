@@ -10,7 +10,7 @@
 // localStorage — tab switches and full reloads, so a finished race isn't lost.
 // Kept out of the chat log on purpose: a benchmark isn't a conversation.
 let compareState = { message: "Build a Kanto team around Pikachu — search current picks, remember it, and schedule two training sessions this week.",
-                     picked: null, running: false, results: null, order: null };
+                     picked: null, running: false, results: null, order: null, sortBy: "latency" };
 try {
   const saved = JSON.parse(localStorage.getItem("waku_compare") || "null");
   if (saved){ compareState.message = saved.message ?? compareState.message;
@@ -36,6 +36,11 @@ function compareModels(d){
   return pinned;
 }
 
+function setCompareSort(key){
+  compareState.sortBy = key;
+  editing = false;   // release the textarea lock so the re-sort redraw shows
+  render();
+}
 function toggleCompareModel(spec){
   const s = compareState.picked;
   s.has(spec) ? s.delete(spec) : s.add(spec);
@@ -59,8 +64,7 @@ async function runCompare(){
   try {
     const res = await fetch("/api/compare/stream", {method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({message: compareState.message, models: specs,
-                            log_calendar: !!compareState.logCalendar})});
+      body: JSON.stringify({message: compareState.message, models: specs})});
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = "";
     for(;;){
@@ -131,7 +135,6 @@ function compareCol(res){
       <span class="chip">${(res.tokens_in||0)+(res.tokens_out||0)} tok</span>
     </div>
     ${tools?`<div class="stages" style="flex-wrap:wrap">${tools}</div>`:""}
-    ${res.logged?`<div class="meta" style="color:var(--good)">added to your calendar: ${esc(res.logged)}</div>`:""}
     <div class="r cmp-reply">${renderMarkdown(res.reply||"")}</div>
   </div>`;
 }
@@ -154,20 +157,29 @@ VIEWS.compare = function(d){
     // "done" = finished successfully (not streaming, not errored) — only these
     // have latency/cost for the fastest/cheapest summary.
     const done = order.map(s => results[s]).filter(Boolean).filter(r => !r.error && !r.streaming);
+    // Sort key: the finished cards rank ascending by the chosen metric (least is
+    // best — fastest / cheapest / fewest tokens), winner to the top-left.
+    const metric = { latency: r => r.latency_ms || 0,
+                     cost:    r => r.cost_usd || 0,
+                     tokens:  r => (r.tokens_in || 0) + (r.tokens_out || 0) };
+    const key = metric[compareState.sortBy] || metric.latency;
+    const sorters = [["latency", "fastest"], ["cost", "cheapest"], ["tokens", "fewest tokens"]];
+    const sortBar = `sort by ${sorters.map(([k, label]) =>
+      `<a class="cmp-sort ${compareState.sortBy === k ? "on" : ""}" onclick="setCompareSort('${k}')">${label}</a>`).join(" · ")}`;
     const summary = done.length
       ? `Isolated temp runs — nothing saved to your data.
          Fastest: <b>${secs(Math.min(...done.map(r=>r.latency_ms)))}</b> ·
          Cheapest: <b>${money(Math.min(...done.map(r=>r.cost_usd||0)))}</b>
-         · ${done.length}/${order.length} done`
+         · ${done.length}/${order.length} done &nbsp;·&nbsp; ${sortBar}`
       : `Racing ${order.length} models in isolated sandboxes — watch each column think and act live.`;
-    // Rank the fastest finished model to the front, then still-running, then
-    // errors — so as the race resolves, the winner rises to the top-left.
+    // Rank finished models first (by the chosen metric), then still-running,
+    // then errors — so as the race resolves, the best rises to the top-left.
     const rank = s => {
       const r = results[s];
       if (!r) return [2, 0];                       // not started
       if (r.error) return [3, 0];                  // failed -> end
       if (r.streaming) return [1, 0];              // running -> middle
-      return [0, r.latency_ms || 0];               // done -> front, fastest first
+      return [0, key(r)];                          // done -> front, best-of-metric first
     };
     const shown = [...order].sort((a, b) => { const ra = rank(a), rb = rank(b); return ra[0] - rb[0] || ra[1] - rb[1]; });
     const cols = shown.map(s => {
@@ -185,12 +197,9 @@ VIEWS.compare = function(d){
     <textarea id="cmp-msg" class="cmp-input" rows="2" onfocus="markEditing()"
       oninput="compareState.message=this.value">${esc(compareState.message)}</textarea>
     <div class="cmp-picks">${chips}</div>
-    <div style="margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="margin-top:10px">
       <button class="save" onclick="runCompare()" ${(!n||compareState.running)?"disabled":""}>
         ${compareState.running?"Racing…":`Race ${n} model${n===1?"":"s"}`}</button>
-      <label class="cmp-pick ${compareState.logCalendar?"on":""}" title="For a scheduling task, write each model's event to your real Apple Calendar, stamped with its model + real seconds/tokens/$">
-        <input type="checkbox" ${compareState.logCalendar?"checked":""}
-          onchange="compareState.logCalendar=this.checked;editing=false;render()"> write results to my calendar</label>
     </div>
   </div>${grid}`;
 };
