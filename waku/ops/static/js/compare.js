@@ -39,7 +39,8 @@ function compareModels(d){
 function toggleCompareModel(spec){
   const s = compareState.picked;
   s.has(spec) ? s.delete(spec) : s.add(spec);
-  render();
+  editing = false;   // release the textarea edit-lock so this redraw isn't
+  render();          // skipped by the guard (else the count/chips go stale)
 }
 
 // Race over SSE so each column fills the MOMENT its model finishes — a slow or
