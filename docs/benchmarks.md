@@ -16,6 +16,38 @@ the outcome — not just the receipts.
 
 ---
 
+## 0. For the video — the eval & scoring arc
+
+This doc doubles as the shot list. The video's spine is **eval and scoring**, not
+"model X is best": the point is *how you decide*, honestly, with receipts. The
+list of tests you'll run on camera is [§3](#3-battery-sections) — that's the
+battery, grouped so you can shoot one section at a time. Suggested arc:
+
+1. **The naive scoreboard (the setup).** Show the arena racing 11 models on one
+   prompt. Speed, tokens, cost. Then the turn: *"this only tells me who was cheap
+   and fast — not who actually did the job."* (This is the gap that motivated the
+   whole video.)
+2. **Scoring, axis by axis.** Introduce the four axes ([§1](#1-the-four-axes)):
+   speed, cost, **Completion** (did the tools actually fire / events get made),
+   **Quality** (K3 as neutral referee). Emphasize Completion is *deterministic* —
+   no vibes, it's the τ-bench/SWE-bench idea done locally.
+3. **The hard cases (where cheap models break).** Run Battery A's four hard cases
+   ([§3.A](#a-agentic-tool-calling--the-assistants-real-job)) — over-eagerness,
+   count precision, completeness, state-awareness. This is the money segment:
+   a model answers fluently and *still fails the checklist*.
+4. **K3 as the referee.** K3 grades the whole field's transcripts, including
+   itself, out loud ([§5](#5-the-judge--k3-as-neutral-referee)). The sponsor's
+   model doing the judging is the hook — surfaced honestly, not hidden.
+5. **The reveal — cost vs. quality.** The Pareto scatter ([§1](#1-the-four-axes)):
+   "opus is 20× the price of gemini-flash — is it 20× better?" The answer is a
+   *picture*, and it's the thumbnail.
+6. **(Optional) coding round.** Delegate a real coding task to pi across models
+   ([§3.B](#b-coding--delegate-to-a-sub-agent)) — scored by tests passing.
+
+Everything below is the reference the arc draws on.
+
+---
+
 ## 1. The four axes
 
 Every race column produces four independent signals. Cost/speed are cheap to
@@ -88,11 +120,16 @@ built to win (its headline is Terminal-Bench / agentic tool use).
 | `draft-message` **[seeded]** | "Send Alex a message that the demo moved to Friday" | `send_message`, body~friday |
 | `pokemon-team` **[seeded]** | "…search picks, remember Pikachu is my starter, schedule two training sessions" | ≥3 tool calls: search + save_note + 2× create_event |
 | `worldcup-final` **[seeded]** | "…search the result, remember who won, draft a message to Raj" | ≥3 tool calls, send_message to~raj |
-| `over-eager-refusal` **[proposed]** | "Cancel my 4pm" with no such event | `expect_tool: null` — must NOT fabricate a cancellation |
-| `free-slot` **[proposed]** | "Find a free morning this week and schedule a 30-min run" | reads the calendar, then one `create_event` in an open slot |
+| `chitchat-no-action` **[seeded]** | "I might grab coffee with Alex sometime, we'll see." | `expect_tool: null` — musing isn't a command; must NOT schedule |
+| `exact-count-sessions` **[seeded]** | "Block three 25-minute focus sessions tomorrow morning" | ≥3 `create_event` — count precision, weak models make one |
+| `remember-and-book` **[seeded]** | "Remember I'm vegetarian, then book dinner with Sam Thursday 7pm" | ≥2 calls: must do BOTH save_note + create_event(sam) |
+| `read-before-write` **[seeded]** | "Check my calendar for a free 30 min this afternoon and schedule a walk" | ≥2 calls: list_events (read state) then create_event |
 
-The last two are the *hard* ones — they punish over-eager models that call a
-tool when they shouldn't, or that schedule blindly without checking state.
+The last four are the *hard* ones, each a distinct failure mode: **over-eagerness**
+(acts on musing), **count precision** (does exactly three, not one),
+**completeness** (does both halves, not just the memorable one), and
+**state-awareness** (reads the calendar before scheduling blind). This is
+precisely what a fluency-only judge misses and a Completion score catches.
 
 ### B. Coding — delegate to a sub-agent
 
