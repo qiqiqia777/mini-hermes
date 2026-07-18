@@ -41,6 +41,7 @@ async function runCompare(){
   compareState.results = {};       // spec -> result, filled as they land
   compareState.raceError = null;
   render();
+  const R = compareState.results;
   try {
     const res = await fetch("/api/compare/stream", {method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -56,7 +57,14 @@ async function runCompare(){
         const line = buf.slice(0, i); buf = buf.slice(i+2);
         if (!line.startsWith("data:")) continue;
         let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch(e){ continue; }
-        if (ev.kind === "result" && ev.spec){ compareState.results[ev.spec] = ev; render(); }
+        const s = ev.spec;
+        // The harness plays out live: start -> gate -> tools, then the final
+        // result with receipts. (We don't token-stream the reply — see
+        // compare_stream in dashboard.py for why.)
+        if (ev.kind === "start"){ R[s] = {spec:s, provider:ev.provider, model:ev.model, streaming:true, tools:[], gate:null}; render(); }
+        else if (ev.kind === "gate" && R[s]){ R[s].gate = {decision:ev.decision, reason:ev.reason}; render(); }
+        else if (ev.kind === "tool" && R[s]){ (R[s].tools = R[s].tools||[]).push({tool:ev.tool}); render(); }
+        else if (ev.kind === "result" && s){ R[s] = ev; render(); }
         else if (ev.kind === "done"){ if (ev.error) compareState.raceError = ev.error; }
       }
     }
@@ -64,16 +72,28 @@ async function runCompare(){
   compareState.running = false; render();
 }
 
-// One contestant's result column. Reuses the shared formatters (gateBadge/
-// toolRow/renderMarkdown/secs/money) so it reads like the chat cards.
+// One contestant's column. While the model runs (res.streaming) it plays out
+// live like the chat dock — gate badge, tool chips light up, reply types in with
+// a caret. When it finishes (res.result) it flips to the full receipts card.
+// Reuses the shared formatters (renderMarkdown/secs/money).
 function compareCol(res){
   if (res.error) return `<div class="cmp-col err"><div class="cmp-h"><code>${esc(res.model)}</code>
     <span class="srcpill apple">error</span></div><div class="meta">${esc(res.error)}</div></div>`;
   const tools = (res.tools||[]).map(t => `<span class="stage done">tool · ${esc(t.tool)}</span>`).join("");
+  const gateBadgeHtml = `<span class="badge ${res.gate&&res.gate.decision==="retrieve"?"retrieve":""}">gate · ${esc(res.gate?res.gate.decision:"…")}</span>`;
+  if (res.streaming){
+    return `<div class="cmp-col">
+      <div class="cmp-h"><span class="mm-prov">${esc(res.provider)}</span> <code>${esc(res.model)}</code>
+        <span class="live-dot"></span></div>
+      <div class="cmp-stats">${gateBadgeHtml}</div>
+      ${tools?`<div class="stages" style="flex-wrap:wrap">${tools}</div>`:""}
+      <div class="meta">${(res.tools||[]).length?"running tools…":"thinking…"} <span class="caret"></span></div>
+    </div>`;
+  }
   return `<div class="cmp-col">
     <div class="cmp-h"><span class="mm-prov">${esc(res.provider)}</span> <code>${esc(res.model)}</code></div>
     <div class="cmp-stats">
-      <span class="badge ${res.gate&&res.gate.decision==="retrieve"?"retrieve":""}">gate · ${esc(res.gate?res.gate.decision:"—")}</span>
+      ${gateBadgeHtml}
       <span class="chip">${secs(res.latency_ms)}</span>
       <span class="chip">${res.iterations??"?"} iter</span>
       <span class="chip money">${money(res.cost_usd||0)}</span>
@@ -99,13 +119,15 @@ VIEWS.compare = function(d){
   const order = compareState.order || [];
   if (order.length){
     const results = compareState.results || {};
-    const done = order.map(s => results[s]).filter(Boolean).filter(r => !r.error);
+    // "done" = finished successfully (not streaming, not errored) — only these
+    // have latency/cost for the fastest/cheapest summary.
+    const done = order.map(s => results[s]).filter(Boolean).filter(r => !r.error && !r.streaming);
     const summary = done.length
       ? `Isolated temp runs — nothing saved to your data.
          Fastest: <b>${secs(Math.min(...done.map(r=>r.latency_ms)))}</b> ·
          Cheapest: <b>${money(Math.min(...done.map(r=>r.cost_usd||0)))}</b>
          · ${done.length}/${order.length} done`
-      : `Racing ${order.length} models in isolated sandboxes — columns fill as each finishes.`;
+      : `Racing ${order.length} models in isolated sandboxes — watch each column think and act live.`;
     const cols = order.map(s => {
       const r = results[s];
       if (r) return compareCol(r);

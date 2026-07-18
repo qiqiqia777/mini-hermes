@@ -244,18 +244,76 @@ def compare_models(payload: dict) -> dict:
 
 
 def compare_stream(message: str, specs: list, emit) -> None:
-    """Same race, but emit each model's result the MOMENT it finishes so the
-    dashboard fills columns progressively — a slow or broken contestant (e.g. a
-    keyless provider) never blocks the rest from showing."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    """Race the models and stream each one's harness LIVE — gate decision, tool
+    calls, and reply tokens, per model — so every column plays out like the chat
+    dock instead of a static 'racing…'. Contestants run in parallel threads that
+    all write to one SSE socket, so emit() is serialized behind a lock. Each
+    event is tagged with its `spec` so the browser routes it to the right column.
+    Isolated temp homes, same as the batch path."""
+    import tempfile
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from waku.app import Waku
+    from waku.config import Settings
 
     if not message or not specs:
         emit("done", {"error": "message and models required"})
         return
+
+    lock = threading.Lock()
+
+    def send(kind, ev):
+        with lock:
+            emit(kind, ev)
+
+    def run(spec):
+        provider, _, model = spec.partition(":")
+        send("start", {"spec": spec, "provider": provider, "model": model})
+        home = Path(tempfile.mkdtemp(prefix=f"compare-{provider}-"))
+        gate: dict = {}
+
+        # Stream the STRUCTURAL harness live (gate decision, tool calls) — these
+        # fire from the observer without stream=True. We deliberately DON'T
+        # token-stream the reply: stream=True makes some reasoning models (gemini
+        # with tools) demand a thought_signature and 400, which the plain path
+        # doesn't. So the harness plays out live and the reply lands on finish.
+        def obs(kind, ev):
+            if kind == "gate":
+                gate.update(decision=ev.get("decision"), reason=ev.get("reason"))
+                send("gate", {"spec": spec, "decision": ev.get("decision"), "reason": ev.get("reason")})
+            elif kind == "tool":
+                send("tool", {"spec": spec, "tool": ev.get("tool")})
+
+        try:
+            settings = Settings(provider=provider, model=model, small_model="",
+                                home=home, apple_calendar=False)
+            app = Waku(settings=settings)
+            t0 = time.perf_counter()
+            result = app.respond(message, source="compare", observer=obs)
+            ms = int((time.perf_counter() - t0) * 1000)
+            tin = tout = 0
+            ledger = home / "usage.jsonl"
+            if ledger.exists():
+                for line in ledger.read_text().splitlines():
+                    try:
+                        r = json.loads(line)
+                        tin, tout = tin + r.get("in", 0), tout + r.get("out", 0)
+                    except json.JSONDecodeError:
+                        pass
+            pin, pout = price_for(provider, settings.model)
+            send("result", {"spec": spec, "provider": provider, "model": settings.model,
+                            "reply": result.reply, "gate": (gate or None),
+                            "iterations": result.iterations, "latency_ms": ms,
+                            "tools": [{"tool": c["tool"]} for c in result.tool_calls],
+                            "tokens_in": tin, "tokens_out": tout,
+                            "cost_usd": round(tin / 1e6 * pin + tout / 1e6 * pout, 4)})
+        except Exception as exc:
+            send("result", {"spec": spec, "provider": provider, "model": model, "error": str(exc)[:200]})
+
     with ThreadPoolExecutor(max_workers=min(len(specs), 6)) as ex:
-        futs = [ex.submit(_compare_one, message, s) for s in specs]
-        for fut in as_completed(futs):
-            emit("result", fut.result())
+        list(ex.map(run, specs))
     emit("done", {})
 
 
