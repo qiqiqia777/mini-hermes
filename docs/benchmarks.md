@@ -131,21 +131,38 @@ The last four are the *hard* ones, each a distinct failure mode: **over-eagernes
 **state-awareness** (reads the calendar before scheduling blind). This is
 precisely what a fluency-only judge misses and a Completion score catches.
 
-### B. Coding — delegate to a sub-agent
+### B. Coding — cross-model, via pi   **[built — CLI]**
 
-Waku is the orchestrator; **pi** (the `delegate_task` tool, §4) is the coding
-contractor. A coding case delegates a real programming job and scores it by
-**running the produced code's tests**, not by reading the reply.
+Waku is the orchestrator; **pi** is the coding contractor — but for a *coding*
+benchmark we point pi at each **contestant's** model, so one fixed harness
+auditions every brain. A coding case seeds a sandbox, hands pi the task, then
+scores by **running the produced code's `verify` command** — SWE-bench style
+(tests pass, exit 0), never by reading the reply.
 
-| id | task | expected outcome |
-|----|------|------------------|
-| `code-fizzbuzz` **[proposed]** | "Write `fizzbuzz(n)` and a pytest for it" | file written, `pytest` green |
-| `code-bugfix` **[proposed]** | seeded repo with one failing test → "make the suite pass" | suite goes red → green, no test edited |
-| `code-feature` **[proposed]** | small spec ("add a `--json` flag to this CLI") | new behavior works, existing tests still pass |
+Cases live in their own file, `evals/coding.jsonl` (separate from the agentic
+dataset so they never run through the tool-calling tier), with `input`, optional
+`files` (seeded into the sandbox), and `verify` (the command whose exit code is
+the score):
 
-Coding cases need a new `kind: "coding"` + `verify` (a command whose exit code
-is the score) — documented here as the extension to build, mirroring how
-SWE-bench scores by patch-applies-and-tests-pass rather than by prose.
+| id | task | verify |
+|----|------|--------|
+| `code-fizzbuzz` **[seeded]** | "Create fizzbuzz.py with fizzbuzz(n)…" | imports it, asserts Fizz/Buzz/FizzBuzz/str(n) |
+| `code-bugfix` **[seeded]** | seeded `calc.py` with a wrong `add()` → "fix it, don't touch check.py" | runs `check.py` |
+
+Run it:
+```bash
+make shootout-coding RUNS="kimi:kimi-k3 anthropic:claude-opus-4-8"
+```
+pi natively speaks every provider we pin (anthropic, openai, google/gemini,
+**moonshotai/kimi**, xai/grok, zai/glm) — the runner maps Waku's provider id to
+pi's and passes the key with `--api-key`, so K3 races the field on identical
+footing. Verified live: opus-4-8 and kimi-k3 both solve `code-fizzbuzz` (scored
+by real test execution). The scorer lives in
+[`waku/ops/coding_eval.py`](../waku/ops/coding_eval.py).
+
+**Still owed:** a coding column in the *live arena* (today it's the CLI table) —
+coding runs are multi-turn and slower than a chat turn, so they're a deliberate
+"coding round," and pi's token/cost aren't yet captured into the receipts.
 
 ### C. Memory & context
 
@@ -276,6 +293,8 @@ Speed/Cost/Tokens.
   battery case now scores each column live (green "solved" / red "failed · why"
   badge + a "solved" scoreboard column), via the one scorer in
   [`waku/ops/scoring.py`](../waku/ops/scoring.py) shared with `shootout.py`.
+- ~~Battery section B (coding) + cross-model pi~~ — **done (CLI)**: `make
+  shootout-coding` runs the coding battery through pi on any pinned model,
+  scored by tests. A coding column in the *live arena* is the remaining piece.
 - Quality column (K3-as-judge) wired into the arena.
-- Battery section B (coding via `delegate_task`) + cross-model pi.
 - A cost-vs-quality visualization (§1) — the Pareto view, not just a table.

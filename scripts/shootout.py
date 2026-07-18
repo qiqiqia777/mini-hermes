@@ -124,6 +124,30 @@ def markdown(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def coding_shootout(runs: list[str], cases: list[dict], trials: int) -> str:
+    """Cross-model CODING round: pi runs each contestant's model on each coding
+    task, scored by the task's `verify` command (tests pass = 1). Prints a table."""
+    from waku.ops.coding_eval import run_coding_case
+
+    lines = ["| brain | pass rate | avg latency | detail |", "|---|---|---|---|"]
+    for spec in runs:
+        provider, _, model = spec.partition(":")
+        print(f"\n=== coding · {provider}:{model or '(default)'} — {len(cases)} cases x {trials} ===")
+        hits = total = 0
+        lats, notes = [], []
+        for case in cases:
+            for _ in range(trials):
+                passed, why, secs = run_coding_case(provider, model, case)
+                hits += 1 if passed else 0
+                total += 1
+                lats.append(secs)
+                print(f"  [{'PASS' if passed else 'fail'}] {case['id']:16} {secs:6.1f}s  {why}")
+            notes.append(f"{case['id']}:{'ok' if passed else why[:24]}")
+        avg = round(sum(lats) / len(lats), 1) if lats else 0
+        lines.append(f"| {spec} | {hits}/{total} | {avg}s | {'; '.join(notes)} |")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the same tasks on different brains.")
     parser.add_argument("runs", nargs="+", metavar="provider:model",
@@ -132,7 +156,29 @@ def main() -> None:
     parser.add_argument("--cases", default="", help="comma-separated case ids (default: all)")
     parser.add_argument("--trials", type=int, default=3,
                         help="attempts per case (default 3 — rates, not coin flips)")
+    parser.add_argument("--coding", action="store_true",
+                        help="run the CODING battery (evals/coding.jsonl) via pi per model, "
+                             "scored by each task's verify command")
     args = parser.parse_args()
+
+    if args.coding:
+        from waku.ops.coding_eval import load_coding_cases, pi_available
+        if not pi_available():
+            raise SystemExit("pi isn't installed — the coding battery needs it. "
+                             "Install: npm install -g --ignore-scripts @earendil-works/pi-coding-agent")
+        wanted = [c.strip() for c in args.cases.split(",") if c.strip()]
+        cases = [c for c in load_coding_cases() if not wanted or c["id"] in wanted]
+        if not cases:
+            raise SystemExit(f"no coding cases match {wanted!r} — ids: "
+                             f"{[c['id'] for c in load_coding_cases()]}")
+        table = coding_shootout(args.runs, cases, args.trials)
+        print("\n" + table)
+        out_dir = load_settings().home / "shootout"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        (out_dir / f"coding-{stamp}.md").write_text(table + "\n")
+        print(f"\nreport: {out_dir}/coding-{stamp}.md")
+        return
 
     wanted = [c.strip() for c in args.cases.split(",") if c.strip()]
     cases = [c for c in DATASET if not wanted or c["id"] in wanted]
