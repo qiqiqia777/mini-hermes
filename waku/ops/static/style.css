@@ -312,7 +312,7 @@
   .cmp-input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:8px;
        padding:10px 12px;color:var(--ink);font-size:13.5px;font-family:inherit;outline:none;resize:vertical}
   .cmp-input:focus{border-color:var(--accent)}
-  .cmp-picks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .cmp-picks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
   .cmp-pick{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2);
        border:1px solid var(--line2);border-radius:99px;padding:4px 10px;cursor:pointer}
   .cmp-pick.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}

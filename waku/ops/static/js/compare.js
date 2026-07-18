@@ -239,14 +239,14 @@ VIEWS.compare = function(d){
   if (compareState.history === undefined){ compareState.history = []; setTimeout(loadCompareHistory, 0); }
 
   return `<div class="card">
-    <div class="meta" style="margin-bottom:6px">One message, every brain at once — same harness, isolated homes, real receipts (gate · latency · cost · tools). Compare, don't guess.</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+      <span class="meta">One message, every brain at once — same harness, isolated homes, real receipts (gate · latency · cost · tools). Compare, don't guess.</span>
+      <button class="save cmp-race" style="margin-left:auto" onclick="runCompare()" ${(!n||compareState.running)?"disabled":""}>
+        ${compareState.running?"Racing…":`Race ${n} model${n===1?"":"s"}`}</button>
+    </div>
     <textarea id="cmp-msg" class="cmp-input" rows="2" onfocus="markEditing()"
       oninput="compareState.message=this.value">${esc(compareState.message)}</textarea>
     <div class="cmp-picks">${chips}</div>
-    <div style="margin-top:10px">
-      <button class="save cmp-race" onclick="runCompare()" ${(!n||compareState.running)?"disabled":""}>
-        ${compareState.running?"Racing…":`Race ${n} model${n===1?"":"s"}`}</button>
-    </div>
   </div>${grid}${compareHistoryHtml()}`;
 };
 
