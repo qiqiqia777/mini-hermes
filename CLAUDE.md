@@ -22,15 +22,20 @@ for its own sake is not.
 
 ## Rules
 
+- **Be concise.** Sean wants short replies: lead with the answer, cut preamble and
+  recap. A few lines beats a wall of text. Expand only when he asks for detail.
 - **Never wipe runtime data without asking first, every time.** `scripts/demo_seed.py`
   and anything else that clears `.waku` (memory, calendar, chat log, traces, or the
   `usage.jsonl` spend ledger) must be proposed and explicitly approved by the user
   *immediately before each run*. Permission never carries over from a previous run.
   The script backs up first, but restoring is a hassle — ask, wait for a clear yes,
   then run. It refuses to do anything without the `--yes` flag for this reason.
-- **Version control**: commit at every working milestone with a detailed message —
-  subject says what, body says WHY and what the change survived (tests, live use).
-  Push to `origin main` after committing. Use the `/ship` skill.
+- **Version control — commit AND push every milestone, same turn.** The moment a change
+  works (tests pass / verified live), commit it with a detailed message (subject = what,
+  body = WHY + what it survived) and `git push origin main` before moving on. Never end a
+  turn or session with working changes left uncommitted — the repo must always be traceable
+  from GitHub, and uncommitted work has been lost to branch switches before. Use the `/ship`
+  skill. If several milestones land in one session, commit each as its own logical commit.
 - **Gate before push**: `make gate` (deterministic must pass; judge runs with a key).
   When a live bug is found, fix it AND add a regression case to `evals/deterministic/`.
 - **No emojis** in any UI surface (dashboard, CLI output, README prose).
