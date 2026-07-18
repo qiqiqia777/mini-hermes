@@ -1120,6 +1120,15 @@ def settings_info() -> dict:
         if m:
             pinned.append({"provider": p, "model": m, "default": p not in seen})
             seen.add(p)
+    # Group by provider for display (so all of one lab's models sit together,
+    # e.g. a late-added claude-fable-5 joins the other anthropic rows). A STABLE
+    # sort by provider's first-appearance order keeps each provider's own order —
+    # so its default (first pinned) stays on top and the 'default' flags above
+    # still line up.
+    prov_order: dict = {}
+    for row in pinned:
+        prov_order.setdefault(row["provider"], len(prov_order))
+    pinned.sort(key=lambda row: prov_order[row["provider"]])
     return {
         "provider": s.provider,
         "model": s.model or (prov.model if prov else ""),
