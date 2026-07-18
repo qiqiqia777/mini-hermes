@@ -129,8 +129,11 @@ async function runCompare(){
       }
     }
   } catch(e){ compareState.raceError = String(e); }
-  compareState.running = false; saveCompare(); render();
-  loadCompareHistory();   // the server just logged this race — refresh the scoreboard
+  compareState.running = false; saveCompare();
+  // The server just logged this race; loadCompareHistory re-renders with the
+  // fresh (race-inclusive) totals. No intermediate render(), so the live-folded
+  // rows hand off to the server totals without a flicker.
+  loadCompareHistory();
 }
 
 // One contestant's column. While the model runs (res.streaming) it plays out
@@ -254,9 +257,35 @@ VIEWS.compare = function(d){
 // across every logged race, then the list of recent races (click to reopen).
 // Data comes from GET /api/compare/history (the arena's own JSONL, never the
 // agent's real state).
+// The scoreboard the board shows = the server's totals (finished races) PLUS,
+// while a race is still running, its already-finished columns folded in — so a
+// model's numbers land the moment ITS column finishes, instead of waiting for
+// the slowest model in the race. No double count: the running race isn't in the
+// server totals yet, and once it completes running=false so we stop folding it.
+function boardAggregate(){
+  const map = {};
+  (compareState.aggregate || []).forEach(a => { map[a.spec] = {...a}; });
+  if (compareState.running){
+    (compareState.order || []).forEach(spec => {
+      const r = (compareState.results || {})[spec];
+      if (!r || r.streaming) return;   // column not finished yet
+      const a = map[spec] || (map[spec] = {spec, provider: r.provider, model: r.model,
+        runs: 0, ok: 0, total_latency_ms: 0, total_tokens: 0, total_cost_usd: 0});
+      a.runs += 1;
+      if (!r.error){
+        a.ok += 1;
+        a.total_latency_ms += r.latency_ms || 0;
+        a.total_tokens += (r.tokens_in || 0) + (r.tokens_out || 0);
+        a.total_cost_usd = Math.round((a.total_cost_usd + (r.cost_usd || 0)) * 10000) / 10000;
+      }
+    });
+  }
+  return Object.values(map);
+}
 function compareHistoryHtml(){
-  const agg = compareState.aggregate || [];
+  const agg = boardAggregate();
   const hist = compareState.history || [];
+  const raceCount = hist.length + (compareState.running ? 1 : 0);
   if (!agg.length && !hist.length) return "";
   // Cumulative totals across all races. Click a column header to sort by it —
   // ascending first, click again to flip (arrow shows the active column + dir).
@@ -266,14 +295,15 @@ function compareHistoryHtml(){
   const rows = [...agg].sort((x, y) => ((x[bs.key] ?? 0) - (y[bs.key] ?? 0)) * (bs.dir === "asc" ? 1 : -1));
   const scoreboard = agg.length ? `
     <h2 style="margin-top:22px;display:flex;align-items:center;gap:10px">Scoreboard
-      <span class="meta" style="font-weight:400">— totals across ${hist.length} race${hist.length===1?"":"s"}</span>
+      <span class="meta" style="font-weight:400">— totals across ${raceCount} race${raceCount===1?"":"s"}</span>
       <a class="reveal" style="margin-left:auto;font-size:12px" onclick="clearCompareHistory()">clear</a></h2>
     <div class="card" style="padding:4px 8px"><table>
-      <tr><th>model</th>${th("runs","races")}<th>ok</th>${th("total_latency_ms","total time")}${th("total_tokens","total tokens")}${th("total_cost_usd","total cost")}</tr>
+      <tr><th>model</th>${th("runs","races")}<th>ok</th>${th("total_latency_ms","total time")}${th("total_tokens","total tokens")}<th title="list price per million tokens, input / output">rate $/M</th>${th("total_cost_usd","total cost")}</tr>
       ${rows.map(a=>`<tr>
         <td><span class="mm-prov">${esc(a.provider)}</span> <code>${esc(a.model)}</code></td>
         <td class="meta">${a.runs}</td><td class="meta">${a.ok}/${a.runs}</td>
         <td class="meta">${secs(a.total_latency_ms)}</td><td class="meta">${a.total_tokens}</td>
+        <td class="meta">${a.rate_in!=null?`$${a.rate_in}/$${a.rate_out}`:"—"}</td>
         <td class="meta" style="color:var(--good)">${money(a.total_cost_usd)}</td></tr>`).join("")}
     </table></div>` : "";
   const recent = hist.length ? `

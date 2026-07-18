@@ -352,15 +352,32 @@ PRICING = {
 _price_cache: dict[str, tuple[float, float]] = {}
 
 
-# Known per-model prices for endpoints with no listable catalog (the anthropic
-# wire has no /models). Checked before the provider-level fallback so e.g. a
-# kimi-k3 run ($3/$15) isn't priced at the kimi-k2.7 rate ($0.6/$2.5).
+# Known per-model prices ($/M in, out) for endpoints with no listable catalog
+# (the anthropic wire has no /models), checked before the provider-level
+# fallback. Within a provider, models diverge a LOT — fable-5 is ~2x opus,
+# gemini-flash undercuts gemini-pro — so pricing per *model* is the only honest
+# way; a provider-level guess made fable-5 look cheaper than opus. Rates are
+# standard short-context list prices (cache/batch discounts not modelled),
+# fact-checked Jul 2026 against each vendor's pricing page. See docs/benchmarks.md.
 MODEL_PRICING = {
-    "kimi-k3": (3.0, 15.0),          # per Moonshot tech blog, Jul 2026
-    "kimi-k2.7": (0.6, 2.5),
+    # Anthropic — platform.claude.com/docs/.../pricing
     "claude-opus-4-8": (5.0, 25.0),
+    "claude-fable-5": (10.0, 50.0),            # Mythos-class flagship, ~2x opus
     "claude-sonnet-5": (3.0, 15.0),
     "claude-haiku-4-5-20251001": (1.0, 5.0),
+    # OpenAI — openai.com pricing (Sol = flagship; chat-latest = non-reasoning)
+    "gpt-5.6-sol": (5.0, 30.0),
+    "gpt-5.3-chat-latest": (1.75, 14.0),
+    # Google Gemini — ai.google.dev pricing (standard <200k tier)
+    "gemini-3.1-pro-preview": (2.0, 12.0),
+    "gemini-3.5-flash": (1.5, 9.0),
+    # Moonshot Kimi — platform.kimi.ai (highspeed = 2x the standard k2.7 rate)
+    "kimi-k3": (3.0, 15.0),
+    "kimi-k2.7-code-highspeed": (1.9, 8.0),
+    "kimi-k2.7": (0.95, 4.0),
+    # xAI Grok — docs.x.ai/developers/pricing
+    "grok-4.5": (2.0, 6.0),
+    "grok-4.3": (1.25, 2.5),
 }
 
 
@@ -1243,8 +1260,22 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/compare/history":
             home = load_settings().home
             runs = compare_history.load_runs(home)
+            # Reprice every stored result from its tokens with the CURRENT price
+            # table, the way usage_summary repricing works — so a pricing fix
+            # corrects past races too, instead of leaving stale $ baked in at
+            # write time. The store keeps raw tokens for exactly this reason.
+            for run in runs:
+                for r in run.get("results", []):
+                    if r.get("error"):
+                        continue
+                    pin, pout = price_for(r.get("provider", ""), r.get("model", ""))
+                    r["cost_usd"] = round((r.get("tokens_in") or 0) / 1e6 * pin
+                                          + (r.get("tokens_out") or 0) / 1e6 * pout, 4)
+            agg = compare_history.aggregate(runs)
+            for row in agg:   # label each row with the rate the cost was computed at
+                row["rate_in"], row["rate_out"] = price_for(row["provider"], row["model"])
             self._send(json.dumps({"runs": runs[-20:][::-1],   # newest first for display
-                                   "aggregate": compare_history.aggregate(runs)}).encode(),
+                                   "aggregate": agg}).encode(),
                        "application/json")
         elif self.path.startswith("/api/models"):
             from urllib.parse import parse_qs, urlparse
