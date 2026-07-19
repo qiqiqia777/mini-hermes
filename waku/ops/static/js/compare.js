@@ -58,7 +58,7 @@ async function regradeCompare(){
   compareState.regrading = true; editing = false; render();
   try {
     const r = await postJSON("/api/compare/regrade",
-      {judge_model: compareState.judgeModel || "openai:gpt-5.6-sol", only_missing: true});
+      {judge_model: compareState.judgeModel || "openai:gpt-5.6-sol", only_missing: false});
     compareState.history = r.runs || []; compareState.aggregate = r.aggregate || [];
     const last = (r.runs || [])[0];
     if (last && compareState.results){
@@ -444,8 +444,8 @@ function compareHistoryHtml(){
   const scoreboard = agg.length ? `
     <h2 style="margin-top:22px;display:flex;align-items:center;gap:10px">Scoreboard
       <span class="meta" style="font-weight:400">— totals across ${raceCount} race${raceCount===1?"":"s"}</span>
-      ${agg.some(a => a.quality_avg == null && a.ok) ? `<a class="reveal" style="margin-left:auto;font-size:12px" title="grade any models the referee skipped (429) in the latest race" onclick="regradeCompare()">${compareState.regrading?"re-grading…":"re-grade"}</a>` : ""}
-      <a class="reveal" style="${agg.some(a => a.quality_avg == null && a.ok)?"":"margin-left:auto;"}font-size:12px" onclick="clearCompareHistory()">clear</a></h2>
+      <a class="reveal" style="margin-left:auto;font-size:12px" title="Re-run the referee on every model in the latest race (use if a grade was skipped/429'd, or to re-score)" onclick="regradeCompare()">${compareState.regrading?"re-grading…":"re-grade all"}</a>
+      <a class="reveal" style="font-size:12px" onclick="clearCompareHistory()">clear</a></h2>
     ${costQualityScatter(agg)}
     <div class="card" style="padding:4px 8px"><table>
       <tr><th>model</th>${th("cases_passed","solved")}<th class="cmp-th ${bs.key==="quality_avg"?"on":""}" onclick="setBoardSort('quality_avg')" title="referee's mean 0-10 grade on the replies (correctness, honesty, concision) — referee is not a racing model">grade${arrow("quality_avg")}</th>${th("runs","races")}<th>ok</th>${th("total_latency_ms","total time")}${th("total_tokens_in","in tok")}${th("total_tokens_out","out tok")}${th("total_tokens","total tok")}<th title="list price per million tokens, input / output">rate $/M</th>${th("total_cost_usd","total cost")}</tr>
