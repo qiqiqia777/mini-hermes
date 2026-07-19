@@ -303,3 +303,68 @@ Speed/Cost/Tokens.
   cost-vs-(quality|completion) scatter — cheap & good is top-left.
 - Remaining: a coding column in the live arena; more battery cases as the video
   script firms up.
+
+---
+
+## 9. Dry run — simulate the whole thing before filming
+
+A full rehearsal of every axis. Copy each prompt **verbatim** into the arena's
+message box — the arena matches it to its battery case by exact text and scores
+it automatically (a typo → it races but shows "—" for Completion).
+
+### Setup
+1. `make dashboard` → open `localhost:7777` → **Compare** tab.
+2. Pick the models you'll film (click the chips). For the full field, all 11.
+3. Hit **clear** on the scoreboard to start from zero.
+4. Turn ON **"grade with K3"** (top-right, next to Race) so every column also
+   gets a Quality score. (Costs one extra K3 call per column — expected.)
+
+### Act 1 — the easy cases (everyone should pass)
+Paste each, click Race, watch the columns fill:
+
+- `Schedule a coffee with Alex next Tuesday at 9am`
+- `Remember that Alex prefers morning meetings`
+- `Send Alex a message that the demo moved to Friday`
+- `What is the capital of France?`  ← the honest **no-tool** case: a good model
+  answers WITHOUT calling a tool (green "solved" = it correctly stayed hands-off)
+
+### Act 2 — the hard cases (where cheap models break — the money segment)
+- `I might grab coffee with Alex sometime, we'll see.`  ← must NOT schedule (over-eager trap)
+- `Block three 25-minute focus sessions tomorrow morning`  ← must make **three** events
+- `Remember that I'm vegetarian, then book dinner with Sam this Thursday at 7pm`  ← must do **both**
+- `Check my calendar for a free 30 minutes this afternoon and schedule a short walk`  ← must **read** then write
+
+Watch for: a model that replies fluently but gets a red **"failed · <why>"** badge.
+That's the whole thesis on screen.
+
+### Act 3 — the multi-tool showcase
+- `Build me a Kanto starter team around Pikachu: search current competitive picks for a balanced six, remember that Pikachu is my starter, and schedule two team-training sessions this week`
+- `Search for the result of the Spain vs Argentina World Cup final, remember who won, and draft a message to Raj about watching the highlights together`
+
+### Act 4 — the reveal
+Scroll to the **Scoreboard**: the cost-vs-quality **scatter** at the top (cheap &
+good = top-left), then the table — sort by **solved**, **K3 grade**, or **total
+cost** by clicking the headers. This is the "is opus 2× the price 2× better?" shot.
+
+### Act 5 — the coding round (terminal, not the dashboard yet)
+```bash
+make shootout-coding RUNS="kimi:kimi-k3 anthropic:claude-opus-4-8 gemini:gemini-3.5-flash"
+```
+Each model's pi writes real code, scored by tests passing. Report saved to
+`.waku/shootout/coding-*.md`.
+
+### Optional — the reproducible CLI table (all agentic cases, all models)
+```bash
+make shootout RUNS="kimi:kimi-k3 anthropic:claude-opus-4-8 gemini:gemini-3.5-flash openai:gpt-5.3-chat-latest xai:grok-4.5"
+```
+`--trials 3` for stable pass-RATES (tool-calling is nondeterministic); saves a
+markdown + json report to `.waku/shootout/` anyone can reproduce with their keys.
+
+### Gotchas to rehearse around
+- **gpt-5.6-sol** errors every race on purpose (reasoning model, can't tool-call
+  on /v1/chat) — leave it in to show the honest error, or drop the chip.
+- **grok** needs xAI credits or it 403s.
+- Judging the whole field at once can 429 the K3 endpoint; a column may show "—"
+  for grade (one retry is built in). Re-race that one if you need it on camera.
+- **kimi-k3 is slow** (reasoning) — its column finishes last; the scoreboard folds
+  each model in as it lands, so the board isn't frozen waiting for it.
