@@ -72,14 +72,11 @@ function openCompareRun(idx){
 }
 
 // Which models are offered: your pinned shortlist (models.json). Default-pick
-// the first (flagship) of each provider so the race is one brain per lab.
+// ALL of them, so a fresh Compare tab races the whole field (uncheck to narrow).
 function compareModels(d){
   const pinned = ((d.settings && d.settings.pinned) || []);
   if (compareState.picked === null){
-    const seen = new Set();
-    compareState.picked = new Set(pinned.filter(p => {
-      const first = !seen.has(p.provider); seen.add(p.provider); return first;
-    }).map(p => `${p.provider}:${p.model}`));
+    compareState.picked = new Set(pinned.map(p => `${p.provider}:${p.model}`));
   }
   return pinned;
 }
