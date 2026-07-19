@@ -160,13 +160,17 @@ footing. Verified live: opus-4-8 and kimi-k3 both solve `code-fizzbuzz` (scored
 by real test execution). The scorer lives in
 [`waku/ops/coding_eval.py`](../waku/ops/coding_eval.py).
 
-**In the live arena too:** turn on the **"coding (pi)"** toggle and race — each
-card runs the prompt through pi on **its own** model, with pi's **terminal
-streaming live** in the column, then scores by the case's `verify` (green
-"solved" / red "failed"). A free-form coding prompt ("build snake and run it")
-also works — pi runs it (it has a bash tool, so "run it" happens inside pi),
-there's just no test to score. Note: pi's token/cost aren't captured into the
-receipts yet, so coding rows show latency + solved, not cost.
+**In the live arena too — through the LOOP, not around it:** turn on the
+**"coding (pi)"** toggle and race. This registers `delegate_task` for the race,
+so each card runs the **full harness** (gate → memory → tools) and the model
+*decides* to call `delegate_task`, which spawns a pi sub-agent **on that card's
+own model** to write and run the code. It's autonomous — the loop runs
+model → delegate_task → model finalizes, no stopping to wait — and the card shows
+the real receipts: the gate badge, the `delegate_task` tool chip, tokens, and
+cost (the loop's own; pi's internal tokens aren't captured). A free-form prompt
+("build snake and run it") works because pi has a bash tool, so "run it" happens
+inside the delegated sub-agent. (Reasoning models are slow here — kimi-k3 as the
+loop brain + pi can take minutes; film 2-3 models.)
 
 ### C. Memory & context
 

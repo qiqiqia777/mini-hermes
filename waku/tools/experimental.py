@@ -67,9 +67,23 @@ def make_delegate_tool(settings: Settings) -> Tool:
             workdir.mkdir(parents=True, exist_ok=True)
 
         timeout = int(timeout_seconds) or int(os.getenv("WAKU_DELEGATE_TIMEOUT", "300"))
+        # Run pi on the SAME brain the loop is using, so the sub-agent's coding is
+        # this model's coding (that's the point of a per-model comparison). pi
+        # natively speaks every provider we pin; fall back to pi's own default if
+        # this provider isn't mappable. -a/--no-session = headless; stdin=DEVNULL
+        # so pi never blocks on a TTY it doesn't have under the server.
+        from waku.ops.coding_eval import PI_PROVIDER, _key_for
+        cmd = [pi_bin]
+        pi_prov = PI_PROVIDER.get(settings.provider)
+        if pi_prov and settings.model:
+            cmd += ["--provider", pi_prov, "--model", settings.model]
+            key = _key_for(settings.provider)
+            if key:
+                cmd += ["--api-key", key]
+        cmd += ["-p", task, "-a", "--no-session"]
         try:
-            result = subprocess.run([pi_bin, "-p", task], cwd=workdir, capture_output=True,
-                                    text=True, timeout=timeout, check=False)
+            result = subprocess.run(cmd, cwd=workdir, stdin=subprocess.DEVNULL,
+                                    capture_output=True, text=True, timeout=timeout, check=False)
         except subprocess.TimeoutExpired:
             return (f"pi was still working after {timeout}s so I stopped it — try a smaller "
                     f"task, or raise WAKU_DELEGATE_TIMEOUT.")

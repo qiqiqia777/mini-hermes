@@ -278,30 +278,6 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False,
             if kind == "result":
                 collected.append(ev)
 
-    def run_coding(spec):
-        """Coding mode: pi does the job on THIS card's model, its terminal
-        streaming live. Scored by the case's verify when the prompt is a known
-        coding case; a free-form prompt (e.g. 'build snake and run it') just runs
-        and shows the work."""
-        from waku.ops import coding_eval
-        provider, _, model = spec.partition(":")
-        send("start", {"spec": spec, "provider": provider, "model": model, "coding": True})
-        ccase = coding_eval.coding_case_for_message(message)
-        task = (ccase or {}).get("input", message)
-        files = (ccase or {}).get("files")
-        verify = (ccase or {}).get("verify")
-        t0 = time.perf_counter()
-        passed, why, secs = coding_eval.run_coding_stream(
-            provider, model, task, files, verify,
-            on_line=lambda ln: send("piline", {"spec": spec, "line": ln}))
-        completion = None
-        if verify and passed is not None:
-            completion = {"passed": passed, "why": why, "case": (ccase or {}).get("id", "coding")}
-        send("result", {"spec": spec, "provider": provider, "model": model, "coding": True,
-                        "latency_ms": int((time.perf_counter() - t0) * 1000),
-                        "reply": why or "", "completion": completion, "quality": None,
-                        "tools": [], "gate": None})
-
     def run(spec):
         provider, _, model = spec.partition(":")
         send("start", {"spec": spec, "provider": provider, "model": model})
@@ -321,8 +297,11 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False,
                 send("tool", {"spec": spec, "tool": ev.get("tool")})
 
         try:
+            # coding mode registers delegate_task (the pi sub-agent) so the loop
+            # can hand real programming work to pi — running the FULL harness
+            # (gate, memory, tools), not a bypass. pi runs on this card's model.
             settings = Settings(provider=provider, model=model, small_model="",
-                                home=home, apple_calendar=False)
+                                home=home, apple_calendar=False, experimental=coding)
             app = Waku(settings=settings)
             # A scored case may pre-load a fact (e.g. "applies memory") so every
             # model starts from the same state the checklist assumes.
@@ -364,9 +343,8 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False,
         except Exception as exc:
             send("result", {"spec": spec, "provider": provider, "model": model, "error": str(exc)[:200]})
 
-    worker = run_coding if coding else run
     with ThreadPoolExecutor(max_workers=min(len(specs), 6)) as ex:
-        list(ex.map(worker, specs))
+        list(ex.map(run, specs))
     # Persist the race to the arena's own history (never the agent's real state).
     try:
         compare_history.append_run(load_settings().home, message, collected)

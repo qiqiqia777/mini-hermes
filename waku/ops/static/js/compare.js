@@ -102,8 +102,9 @@ function toggleJudge(){
   editing = false;
   render();
 }
-// Coding-mode toggle: each card runs the prompt through pi on ITS OWN model,
-// pi's terminal streaming live. A known coding case is scored by its tests.
+// Coding-mode toggle: register the delegate_task tool for the race, so the loop
+// can hand real coding work to a pi sub-agent (running on each card's own model)
+// — the FULL harness runs (gate, memory, tools), delegate_task is just one tool.
 function toggleCoding(){
   compareState.coding = !compareState.coding;
   editing = false;
@@ -119,16 +120,6 @@ const JUDGES = [
   {spec:"kimi:kimi-k3",                  label:"Kimi K3 (contestant)"},
 ];
 function setJudgeModel(spec){ compareState.judgeModel = spec; editing = false; render(); }
-// pi streams many lines fast; coalesce renders to ~8/sec so the terminals stay
-// live without thrashing the whole view on every line.
-let _piRenderAt = 0, _piRenderTimer = null;
-function throttlePiRender(){
-  const now = Date.now();
-  if (now - _piRenderAt > 120){ _piRenderAt = now; render(); }
-  else if (!_piRenderTimer){
-    _piRenderTimer = setTimeout(() => { _piRenderTimer = null; _piRenderAt = Date.now(); render(); }, 120);
-  }
-}
 
 // Race over SSE so each column fills the MOMENT its model finishes — a slow or
 // broken contestant (e.g. a keyless provider) never blocks the others. Results
@@ -163,11 +154,10 @@ async function runCompare(){
         // The harness plays out live: start -> gate -> tools, then the final
         // result with receipts. (We don't token-stream the reply — see
         // compare_stream in dashboard.py for why.)
-        if (ev.kind === "start"){ R[s] = {spec:s, provider:ev.provider, model:ev.model, streaming:true, tools:[], gate:null, coding:!!ev.coding, piout:[]}; render(); }
+        if (ev.kind === "start"){ R[s] = {spec:s, provider:ev.provider, model:ev.model, streaming:true, tools:[], gate:null}; render(); }
         else if (ev.kind === "gate" && R[s]){ R[s].gate = {decision:ev.decision, reason:ev.reason}; render(); }
         else if (ev.kind === "tool" && R[s]){ (R[s].tools = R[s].tools||[]).push({tool:ev.tool}); render(); }
-        else if (ev.kind === "piline" && R[s]){ (R[s].piout = R[s].piout||[]).push(ev.line); throttlePiRender(); }
-        else if (ev.kind === "result" && s){ const prev=R[s]; R[s] = ev; if(prev&&prev.piout) R[s].piout=prev.piout; saveCompare(); render(); }
+        else if (ev.kind === "result" && s){ R[s] = ev; saveCompare(); render(); }
         else if (ev.kind === "done"){ if (ev.error) compareState.raceError = ev.error; }
       }
     }
@@ -195,18 +185,6 @@ function compareErrorReason(err){
   return null;
 }
 function compareCol(res){
-  if (res.coding){
-    const c = res.completion;
-    const badge = res.streaming
-      ? `<span class="live-dot"></span>`
-      : (c ? `<span class="cmp-score ${c.passed?"pass":"fail"}" title="${esc(c.why||"")}">${c.passed?"solved":"failed · "+esc(c.why||"")}</span>`
-           : `<span class="chip">ran ${secs(res.latency_ms||0)}</span>`);
-    const term = (res.piout||[]).slice(-60).map(l => esc(l)).join("\n");
-    return `<div class="cmp-col${c?(c.passed?" solved":" failed"):""}">
-      <div class="cmp-h"><span class="mm-prov">${esc(res.provider)}</span> <code>${esc(res.model)}</code> <span class="chip">pi</span>${badge}</div>
-      <pre class="cmp-term">${term || "starting pi…"}</pre>
-    </div>`;
-  }
   if (res.error){
     const why = compareErrorReason(res.error);
     return `<div class="cmp-col err"><div class="cmp-h"><span class="mm-prov">${esc(res.provider)}</span> <code>${esc(res.model)}</code>
@@ -307,7 +285,7 @@ VIEWS.compare = function(d){
   return `<div class="card">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
       <span class="meta">One message, every brain at once — same harness, isolated homes, real receipts (gate · latency · cost · tools). Compare, don't guess.</span>
-      <label class="cmp-judge ${compareState.coding?"on":""}" style="margin-left:auto" title="Coding task: each card runs the prompt through pi on its own model, terminal streaming live">
+      <label class="cmp-judge ${compareState.coding?"on":""}" style="margin-left:auto" title="Coding task: enables the delegate_task tool so the loop can hand real coding work to a pi sub-agent on this card's own model — the full harness runs (gate, tools), delegate_task is one of them">
         <input type="checkbox" ${compareState.coding?"checked":""} onchange="toggleCoding()"> coding (pi)</label>
       <label class="cmp-judge ${compareState.judge?"on":""}" title="Grade each reply 0-10 for how well it serves the request (correctness, honesty, concision). One extra API call per column, by a referee that isn't racing.">
         <input type="checkbox" ${compareState.judge?"checked":""} onchange="toggleJudge()"> grade &mdash; referee
