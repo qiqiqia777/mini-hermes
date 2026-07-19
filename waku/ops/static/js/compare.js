@@ -367,6 +367,15 @@ function costQualityScatter(agg){
     return `<circle cx="${px(p.x).toFixed(1)}" cy="${py(p.y).toFixed(1)}" r="5" class="sc-dot ${cls}"/>
       <text x="${(px(p.x)+9).toFixed(1)}" y="${(py(p.y)+3).toFixed(1)}" class="sc-lbl">${esc(p.a.model)} · ${money(p.x)}</text>`;
   }).join("");
+  // Hover the y-axis label to read the criteria (native SVG <title> tooltip).
+  const yCriteria = useQ
+    ? "Referee grade — 0-10, scored by a model that isn't racing, given the tools that actually fired:\n"
+      + "9-10  fully addresses the request — correct, concise, honest\n"
+      + "5-8   mostly there — minor gaps, padding, or small errors\n"
+      + "1-4   partial, vague, or partly wrong\n"
+      + "0     ignores it, or claims an action it didn't take"
+    : "Completion — fraction of the task's checklist met (right tool, right args, enough calls). Deterministic, no judge.";
+  const yLabel = useQ ? "referee grade" : "completion";
   return `<div class="card" style="padding:12px 14px;margin-top:14px">
     <div class="meta" style="margin-bottom:4px">Cost vs ${useQ?"quality (referee grade)":"completion"} — cheap &amp; good is top-left</div>
     <svg viewBox="0 0 ${W} ${H}" class="scatter" preserveAspectRatio="xMidYMid meet">
@@ -374,7 +383,7 @@ function costQualityScatter(agg){
       <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" class="sc-axis"/>
       ${gr}${dots}
       <text x="${(L+(W-R-L)/2).toFixed(0)}" y="${H-6}" class="sc-tick" text-anchor="middle">total cost →</text>
-      <text x="14" y="${(T+(H-B-T)/2).toFixed(0)}" class="sc-tick" text-anchor="middle" transform="rotate(-90 14 ${(T+(H-B-T)/2).toFixed(0)})">${useQ?"referee grade":"completion"} →</text>
+      <text x="14" y="${(T+(H-B-T)/2).toFixed(0)}" class="sc-tick sc-ylabel" text-anchor="middle" transform="rotate(-90 14 ${(T+(H-B-T)/2).toFixed(0)})">${yLabel} →<title>${esc(yCriteria)}</title></text>
     </svg></div>`;
 }
 function compareHistoryHtml(){
