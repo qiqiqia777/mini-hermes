@@ -368,3 +368,48 @@ markdown + json report to `.waku/shootout/` anyone can reproduce with their keys
   for grade (one retry is built in). Re-race that one if you need it on camera.
 - **kimi-k3 is slow** (reasoning) — its column finishes last; the scoreboard folds
   each model in as it lands, so the board isn't frozen waiting for it.
+
+---
+
+## 10. Metrics — what every scoreboard column means (and the exact math)
+
+The on-camera legend. Every number is computed one way, in one place, and
+**verified against a hand calculation** (worked example below — all fields match).
+
+| column | what it means | exact formula | good = |
+|--------|---------------|---------------|--------|
+| **solved** | Completion — did it actually do the task | `passed / scored`, per the case checklist (right tool, right args, enough calls) | as close to `scored/scored` as possible |
+| **K3 grade** | Quality — how good the reply is | mean of kimi-k3's 0-10 scores over judged replies | higher (7+ is strong) |
+| **races** | how many times this model ran | count of the model's rows across all races | — (denominator) |
+| **ok** | non-errored runs | `ok / races` (an error = a model that couldn't even run) | `races/races` |
+| **total time** | cumulative wall-clock | Σ `latency_ms` over **successful** runs | lower |
+| **in tok / out tok** | cumulative prompt / completion tokens | Σ `tokens_in`, Σ `tokens_out` over successful runs | — |
+| **total tok** | in + out | `in tok + out tok` | lower for same work |
+| **rate $/M** | the model's list price | `$in / $out` per million tokens (per-model, fact-checked) | — (reference) |
+| **total cost** | cumulative dollars | Σ over successful runs of `(tokens_in × rate_in + tokens_out × rate_out) / 1,000,000` | lower for same quality |
+
+### The rules that decide the edge cases (say these out loud on camera)
+
+- **Cost is repriced from tokens on every read**, so a pricing correction fixes
+  past races too — the number is never stale.
+- **Output tokens cost 3-5× input** — that's why in/out are split. A "cheap" model
+  that's verbose can cost more than a pricier terse one.
+- **Errored races count in `races` and against `ok`, but add nothing** to tokens,
+  cost, or completion. A model that only errors is `$0.00` — and useless. Read the
+  cheapest-that-actually-*completed*, not the cheapest overall.
+- **Only a known battery-case prompt gets a `solved` score** (exact-text match);
+  a free-form prompt races but shows `—`.
+- **`K3 grade` only appears when "grade with K3" was on**; unjudged races show `—`.
+
+### Worked example (this is the calculation double-check)
+
+Two races, two models, known token counts:
+
+| model (rate) | race 1 | race 2 | → solved | K3 grade | total tok | total cost |
+|---|---|---|---|---|---|---|
+| kimi-k3 ($3/$15) | 1000 in / 500 out · passed · q8 | 2000 in / 1000 out · failed · q6 | **1/2** | **7.0** = (8+6)/2 | **4500** | **$0.0315** = (3000·3 + 1500·15)/1M |
+| gemini-3.5-flash ($1.5/$9) | 1000 in / 200 out · passed · q5 | **errored** | **1/1** (errored race not scored) | **5.0** (only race 1 judged) | **1200** | **$0.0033** = (1000·1.5 + 200·9)/1M |
+
+Running `aggregate()` on these inputs reproduces every bold number exactly — the
+scoreboard math is correct. (Re-verify anytime with the worked-example script in
+the commit that added this section.)
