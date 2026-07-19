@@ -343,6 +343,16 @@ function boardAggregate(){
   }
   return Object.values(map);
 }
+// A small styled tooltip for the scatter's hover zones (instant + reliable,
+// unlike a native SVG <title>). One element, reused; follows the cursor.
+function _scTip(){
+  let el = document.getElementById("sc-tip");
+  if (!el){ el = document.createElement("div"); el.id = "sc-tip"; el.className = "sc-tip"; document.body.appendChild(el); }
+  return el;
+}
+function showScatterTip(e){ const el = _scTip(); el.textContent = e.currentTarget.getAttribute("data-tip") || ""; el.style.display = "block"; moveScatterTip(e); }
+function moveScatterTip(e){ const el = _scTip(); el.style.left = (e.clientX + 14) + "px"; el.style.top = (e.clientY + 12) + "px"; }
+function hideScatterTip(){ const el = document.getElementById("sc-tip"); if (el) el.style.display = "none"; }
 // The reveal: total cost (x) vs how good (y). Y is K3's grade when we have it,
 // else the completion pass-rate — so "cheap AND good" sits top-LEFT. This is the
 // picture the whole arena is built to draw ("is opus 20x the price 20x better?").
@@ -383,7 +393,9 @@ function costQualityScatter(agg){
       <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" class="sc-axis"/>
       ${gr}${dots}
       <text x="${(L+(W-R-L)/2).toFixed(0)}" y="${H-6}" class="sc-tick" text-anchor="middle">total cost →</text>
-      <text x="14" y="${(T+(H-B-T)/2).toFixed(0)}" class="sc-tick sc-ylabel" text-anchor="middle" transform="rotate(-90 14 ${(T+(H-B-T)/2).toFixed(0)})">${yLabel} →<title>${esc(yCriteria)}</title></text>
+      <text x="14" y="${(T+(H-B-T)/2).toFixed(0)}" class="sc-tick sc-ylabel" text-anchor="middle" transform="rotate(-90 14 ${(T+(H-B-T)/2).toFixed(0)})">${yLabel} →</text>
+      <rect class="sc-yhit" x="0" y="${T}" width="26" height="${H-B-T}" data-tip="${esc(yCriteria)}"
+        onmouseenter="showScatterTip(event)" onmousemove="moveScatterTip(event)" onmouseleave="hideScatterTip()"/>
     </svg></div>`;
 }
 function compareHistoryHtml(){

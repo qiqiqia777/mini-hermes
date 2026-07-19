@@ -359,8 +359,13 @@
   .scatter .sc-grid{stroke:var(--line);stroke-width:1;opacity:.4}
   .scatter .sc-tick{fill:var(--ink3);font-size:10px}
   /* the y-axis label carries the grading criteria on hover (native <title>) */
-  .scatter .sc-ylabel{cursor:help;text-decoration:underline dotted;fill:var(--ink2)}
-  .scatter .sc-ylabel:hover{fill:var(--accent)}
+  .scatter .sc-ylabel{text-decoration:underline dotted;fill:var(--ink2)}
+  /* a wide invisible hit-zone over the y label so the criteria tooltip is easy to hover */
+  .scatter .sc-yhit{fill:transparent;cursor:help;pointer-events:all}
+  .sc-tip{position:fixed;display:none;z-index:9999;pointer-events:none;max-width:340px;
+    white-space:pre-line;background:var(--panel);color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:8px 11px;font-size:12px;line-height:1.45;
+    box-shadow:0 8px 30px rgba(0,0,0,.28)}
   .scatter .sc-lbl{fill:var(--ink2);font-size:10.5px}
   .scatter .sc-dot.hi{fill:var(--good)}
   .scatter .sc-dot.mid{fill:#c8951f}
