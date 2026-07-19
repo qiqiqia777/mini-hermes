@@ -20,7 +20,14 @@ function render(){
     // don't wipe an in-progress edit on the 5s refresh — but DO switch sub-tabs
   } else {
     editing = false;
+    // Rebuilding #view innerHTML resets the scroll. On a same-view refresh (the
+    // 5s poll, a sort click) keep the reader where they were — only jump to top
+    // on an actual navigation (subChanged), where top is correct.
+    const main = document.querySelector("main");
+    const keepScroll = !subChanged && main;
+    const y = keepScroll ? main.scrollTop : 0;
     document.getElementById("view").innerHTML = VIEWS[view](D, sub);
+    if (keepScroll) main.scrollTop = y;
   }
   activeView = view; activeSub = sub;
   document.getElementById("model").textContent = `${D.provider} · ${D.model}`;
