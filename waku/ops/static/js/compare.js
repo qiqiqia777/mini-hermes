@@ -444,7 +444,7 @@ function compareHistoryHtml(){
   const scoreboard = agg.length ? `
     <h2 style="margin-top:22px;display:flex;align-items:center;gap:10px">Scoreboard
       <span class="meta" style="font-weight:400">— totals across ${raceCount} race${raceCount===1?"":"s"}</span>
-      <a class="reveal" style="margin-left:auto;font-size:12px" title="Re-run the referee on every model in the latest race (use if a grade was skipped/429'd, or to re-score)" onclick="regradeCompare()">${compareState.regrading?"re-grading…":"re-grade all"}</a>
+      <a class="reveal" style="margin-left:auto;font-size:12px" title="Re-run the referee on every model in THIS (latest) run only — not past races. Use if a grade was skipped/429'd, or to re-score." onclick="regradeCompare()">${compareState.regrading?"re-grading…":"re-grade run"}</a>
       <a class="reveal" style="font-size:12px" onclick="clearCompareHistory()">clear</a></h2>
     ${costQualityScatter(agg)}
     <div class="card" style="padding:4px 8px"><table>
