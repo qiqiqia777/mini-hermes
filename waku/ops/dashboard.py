@@ -225,7 +225,8 @@ def _compare_one(message: str, spec: str) -> dict:
                 "tools": [{"tool": c["tool"]} for c in result.tool_calls],
                 "tokens_in": tin, "tokens_out": tout,
                 "cost_usd": round(tin / 1e6 * pin + tout / 1e6 * pout, 4)}
-    except Exception as exc:   # a broken contestant fails alone, not the whole race
+    except (Exception, SystemExit) as exc:   # a broken contestant (incl. a missing
+        # key, which get_client raises as SystemExit) fails alone, not the whole race
         return {"spec": spec, "provider": provider, "model": model, "error": str(exc)[:200]}
 
 
@@ -340,7 +341,10 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False,
                             "tools": [{"tool": c["tool"]} for c in result.tool_calls],
                             "tokens_in": tin, "tokens_out": tout, "cost_usd": cost,
                             "completion": completion, "quality": quality})
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
+            # SystemExit (not an Exception subclass) is what get_client raises for
+            # a missing/misconfigured key. Catch it too, or a keyless provider
+            # would vanish from the race silently instead of showing WHY it failed.
             send("result", {"spec": spec, "provider": provider, "model": model, "error": str(exc)[:200]})
 
     with ThreadPoolExecutor(max_workers=min(len(specs), 6)) as ex:
