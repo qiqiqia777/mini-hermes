@@ -989,6 +989,18 @@ def memory_action(payload: dict) -> dict:
 _models_cache: dict[str, tuple[float, list]] = {}
 
 
+def _known_default_ids(prov, out: dict, is_active: bool) -> list[dict]:
+    """Best-effort model list when the live catalog is unreachable: the provider's
+    flagship + fast + loop/gate defaults — so the showcase model (e.g. opus-4.8)
+    is offered too, not just the two loop defaults — plus the active model when
+    this is the active provider."""
+    ids = [*(prov.default_pair() if prov else []),
+           prov.model if prov else "", prov.small_model if prov else ""]
+    if is_active:
+        ids = [out.get("model"), out.get("small_model"), *ids]
+    return [{"id": m} for m in dict.fromkeys(m for m in ids if m)]
+
+
 def list_models(provider: str | None = None) -> dict:
     """Model ids available on a provider, for the settings model picker — the
     defaults are starting points, never the menu. Pass `provider` to list ANY
@@ -1026,11 +1038,9 @@ def list_models(provider: str | None = None) -> dict:
         url = base.rstrip("/") + "/models"
     else:
         # No catalog endpoint: fall back to the provider's own known defaults
-        # (not the active model, which belongs to a different provider).
-        known = dict.fromkeys([prov.model, prov.small_model] if prov else [])
-        if name == s.provider:
-            known = dict.fromkeys([out["model"], out["small_model"], *known])
-        return {**out, "listed": False, "models": [{"id": m} for m in known if m]}
+        # (flagship + fast + loop/gate), not just the active model.
+        return {**out, "listed": False,
+                "models": _known_default_ids(prov, out, name == s.provider)}
 
     cached = _models_cache.get(url)
     if cached and time.time() - cached[0] < 300:
@@ -1040,7 +1050,18 @@ def list_models(provider: str | None = None) -> dict:
             r["error"] = cerr
         return r
     # Use this provider's own key; s.api_key only holds the ACTIVE provider's.
-    key = (s.api_key if name == s.provider else "") or os.getenv(prov.key_env, "")
+    key = ((s.api_key if name == s.provider else "") or os.getenv(prov.key_env, "")).strip()
+    # HTTP headers must be latin-1; a key with a stray non-ASCII char (a smart
+    # arrow/quote or a line-break from a bad paste) would otherwise crash the
+    # whole listing with an opaque codec error and silently drop back to two
+    # defaults. Catch it here with a message that actually says how to fix it.
+    try:
+        key.encode("latin-1")
+    except UnicodeEncodeError:
+        msg = (f"{prov.key_env} contains a non-ASCII character — re-paste the key "
+               f"(no spaces, line breaks, or arrows).")
+        return {**out, "listed": False,
+                "models": _known_default_ids(prov, out, name == s.provider), "error": msg}
     # send both auth styles — Bearer for OpenAI-compatible catalogs, x-api-key +
     # version for Anthropic's; each server reads the header it knows
     req = urllib.request.Request(url, headers={
@@ -1059,7 +1080,7 @@ def list_models(provider: str | None = None) -> dict:
         except Exception:
             pass
         # still offer the provider's known defaults so the picker isn't empty
-        known = [{"id": m} for m in dict.fromkeys([prov.model, prov.small_model]) if m]
+        known = _known_default_ids(prov, out, name == s.provider)
         # cache the failure (defaults + reason) for ~1 minute so an unreachable
         # catalog doesn't stall every 5-second dashboard poll for 10s — and so a
         # cache hit still shows the defaults and the reason, not a blank list.
