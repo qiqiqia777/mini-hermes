@@ -245,7 +245,7 @@ def compare_models(payload: dict) -> dict:
 
 
 def compare_stream(message: str, specs: list, emit, judge: bool = False,
-                   coding: bool = False) -> None:
+                   coding: bool = False, judge_spec: str = "") -> None:
     """Race the models and stream each one's harness LIVE — gate decision and
     tool calls, per model — so every column plays out like the chat dock instead
     of a static 'racing…'. Each contestant runs the REAL loop (tools included) in
@@ -346,9 +346,15 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False,
             if case:
                 passed, why = scoring.check_case(case, result.tool_calls)
                 completion = {"passed": passed, "why": why, "case": case["id"]}
-            # Quality: K3 grades the reply 0-10 when judging is on (own API call,
-            # so it's opt-in per race). A judge hiccup returns None, never fails.
-            quality = judge_mod.judge_reply(message, result.reply) if judge else None
+            # Quality: the referee grades the reply 0-10 when judging is on (own
+            # API call, so it's opt-in per race). The referee is switchable and
+            # should NOT be a racing model. A judge hiccup returns None.
+            quality = None
+            if judge:
+                jp, _, jm = (judge_spec or "").partition(":")
+                quality = judge_mod.judge_reply(message, result.reply,
+                                                jp or None, jm or None,
+                                                tools=[c["tool"] for c in result.tool_calls])
             send("result", {"spec": spec, "provider": provider, "model": settings.model,
                             "reply": result.reply, "gate": (gate or None),
                             "iterations": result.iterations, "latency_ms": ms,
@@ -1398,7 +1404,8 @@ class Handler(BaseHTTPRequestHandler):
                     pass
             try:
                 compare_stream((payload.get("message") or "").strip(), payload.get("models") or [],
-                               emit, judge=bool(payload.get("judge")), coding=bool(payload.get("coding")))
+                               emit, judge=bool(payload.get("judge")), coding=bool(payload.get("coding")),
+                               judge_spec=(payload.get("judge_model") or ""))
             except Exception as exc:
                 emit("done", {"error": f"{type(exc).__name__}: {exc}"})
             return

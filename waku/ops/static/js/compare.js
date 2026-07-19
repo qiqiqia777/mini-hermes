@@ -102,6 +102,16 @@ function toggleCoding(){
   editing = false;
   render();
 }
+// Who grades quality. Deliberately NOT a racing model by default — a contestant
+// can't fairly judge its own round. gpt-5.6-sol is a strong text judge that
+// makes a poor tool-calling contestant, so it's the natural neutral referee.
+const JUDGES = [
+  {spec:"openai:gpt-5.6-sol",            label:"GPT-5.6 Sol"},
+  {spec:"anthropic:claude-opus-4-8",     label:"Claude Opus 4.8"},
+  {spec:"gemini:gemini-3.1-pro-preview", label:"Gemini 3.1 Pro"},
+  {spec:"kimi:kimi-k3",                  label:"Kimi K3 (contestant)"},
+];
+function setJudgeModel(spec){ compareState.judgeModel = spec; editing = false; render(); }
 // pi streams many lines fast; coalesce renders to ~8/sec so the terminals stay
 // live without thrashing the whole view on every line.
 let _piRenderAt = 0, _piRenderTimer = null;
@@ -129,7 +139,8 @@ async function runCompare(){
   try {
     const res = await fetch("/api/compare/stream", {method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({message: compareState.message, models: specs, judge: !!compareState.judge, coding: !!compareState.coding})});
+      body: JSON.stringify({message: compareState.message, models: specs, judge: !!compareState.judge,
+        judge_model: compareState.judgeModel || "openai:gpt-5.6-sol", coding: !!compareState.coding})});
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = "";
     for(;;){
@@ -210,7 +221,7 @@ function compareCol(res){
   const c = res.completion;
   const completionBadge = c ? `<span class="cmp-score ${c.passed?"pass":"fail"}" title="${esc(c.why||"")}">${c.passed?"solved":"failed"}${c.passed?"":" · "+esc(c.why||"")}</span>` : "";
   const q = res.quality;
-  const qualityBadge = q && q.score!=null ? `<span class="cmp-q ${q.score>=7?"hi":q.score>=4?"mid":"lo"}" title="${esc(q.reason||"")} — judge: ${esc(q.judge||"")}">K3 ${q.score}/10</span>` : "";
+  const qualityBadge = q && q.score!=null ? `<span class="cmp-q ${q.score>=7?"hi":q.score>=4?"mid":"lo"}" title="graded ${q.score}/10 by ${esc(q.judge||"referee")} — ${esc(q.reason||"")}">${q.score}/10</span>` : "";
   return `<div class="cmp-col${c?(c.passed?" solved":" failed"):""}">
     <div class="cmp-h"><span class="mm-prov">${esc(res.provider)}</span> <code>${esc(res.model)}</code>${completionBadge}${qualityBadge}</div>
     <div class="cmp-stats">
@@ -287,8 +298,11 @@ VIEWS.compare = function(d){
       <span class="meta">One message, every brain at once — same harness, isolated homes, real receipts (gate · latency · cost · tools). Compare, don't guess.</span>
       <label class="cmp-judge ${compareState.coding?"on":""}" style="margin-left:auto" title="Coding task: each card runs the prompt through pi on its own model, terminal streaming live">
         <input type="checkbox" ${compareState.coding?"checked":""} onchange="toggleCoding()"> coding (pi)</label>
-      <label class="cmp-judge ${compareState.judge?"on":""}" title="Grade each reply 0-10 with kimi-k3 (one extra API call per column)">
-        <input type="checkbox" ${compareState.judge?"checked":""} onchange="toggleJudge()"> grade with K3</label>
+      <label class="cmp-judge ${compareState.judge?"on":""}" title="Grade each reply 0-10 for how well it serves the request (correctness, honesty, concision). One extra API call per column, by a referee that isn't racing.">
+        <input type="checkbox" ${compareState.judge?"checked":""} onchange="toggleJudge()"> grade &mdash; referee
+        <select onchange="setJudgeModel(this.value)" onclick="event.stopPropagation()" ${compareState.judge?"":"disabled"}>
+          ${JUDGES.map(j=>`<option value="${j.spec}" ${(compareState.judgeModel||"openai:gpt-5.6-sol")===j.spec?"selected":""}>${esc(j.label)}</option>`).join("")}
+        </select></label>
       <button class="save cmp-race" onclick="runCompare()" ${(!n||compareState.running)?"disabled":""}>
         ${compareState.running?"Racing…":`Race ${n} model${n===1?"":"s"}`}</button>
     </div>
@@ -363,13 +377,13 @@ function costQualityScatter(agg){
       <text x="${(px(p.x)+9).toFixed(1)}" y="${(py(p.y)+3).toFixed(1)}" class="sc-lbl">${esc(p.a.model)} · ${money(p.x)}</text>`;
   }).join("");
   return `<div class="card" style="padding:12px 14px;margin-top:14px">
-    <div class="meta" style="margin-bottom:4px">Cost vs ${useQ?"quality (K3 grade)":"completion"} — cheap &amp; good is top-left</div>
+    <div class="meta" style="margin-bottom:4px">Cost vs ${useQ?"quality (referee grade)":"completion"} — cheap &amp; good is top-left</div>
     <svg viewBox="0 0 ${W} ${H}" class="scatter" preserveAspectRatio="xMidYMid meet">
       <line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" class="sc-axis"/>
       <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" class="sc-axis"/>
       ${gr}${dots}
       <text x="${(L+(W-R-L)/2).toFixed(0)}" y="${H-6}" class="sc-tick" text-anchor="middle">total cost →</text>
-      <text x="14" y="${(T+(H-B-T)/2).toFixed(0)}" class="sc-tick" text-anchor="middle" transform="rotate(-90 14 ${(T+(H-B-T)/2).toFixed(0)})">${useQ?"K3 grade":"completion"} →</text>
+      <text x="14" y="${(T+(H-B-T)/2).toFixed(0)}" class="sc-tick" text-anchor="middle" transform="rotate(-90 14 ${(T+(H-B-T)/2).toFixed(0)})">${useQ?"referee grade":"completion"} →</text>
     </svg></div>`;
 }
 function compareHistoryHtml(){
@@ -389,7 +403,7 @@ function compareHistoryHtml(){
       <a class="reveal" style="margin-left:auto;font-size:12px" onclick="clearCompareHistory()">clear</a></h2>
     ${costQualityScatter(agg)}
     <div class="card" style="padding:4px 8px"><table>
-      <tr><th>model</th>${th("cases_passed","solved")}${th("quality_avg","K3 grade")}${th("runs","races")}<th>ok</th>${th("total_latency_ms","total time")}${th("total_tokens_in","in tok")}${th("total_tokens_out","out tok")}${th("total_tokens","total tok")}<th title="list price per million tokens, input / output">rate $/M</th>${th("total_cost_usd","total cost")}</tr>
+      <tr><th>model</th>${th("cases_passed","solved")}<th class="cmp-th ${bs.key==="quality_avg"?"on":""}" onclick="setBoardSort('quality_avg')" title="referee's mean 0-10 grade on the replies (correctness, honesty, concision) — referee is not a racing model">grade${arrow("quality_avg")}</th>${th("runs","races")}<th>ok</th>${th("total_latency_ms","total time")}${th("total_tokens_in","in tok")}${th("total_tokens_out","out tok")}${th("total_tokens","total tok")}<th title="list price per million tokens, input / output">rate $/M</th>${th("total_cost_usd","total cost")}</tr>
       ${rows.map(a=>`<tr>
         <td><span class="mm-prov">${esc(a.provider)}</span> <code>${esc(a.model)}</code></td>
         <td>${a.cases_scored?`<span class="cmp-score ${a.cases_passed===a.cases_scored?"pass":(a.cases_passed?"part":"fail")}">${a.cases_passed}/${a.cases_scored}</span>`:'<span class="meta">—</span>'}</td>

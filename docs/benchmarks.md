@@ -214,19 +214,30 @@ the same way a normal loop does.
 
 ---
 
-## 5. The judge — K3 as neutral referee
+## 5. The judge — a switchable, neutral referee
 
-The Quality axis reuses the DeepEval judge in
-[`evals/judge/anthropic_judge.py`](../evals/judge/anthropic_judge.py), pointed at
-**kimi-k3**. It reads each column's transcript and returns a 0–10 score + a
-one-line reason against a rubric (did it address the ask, use tools sensibly, and
-stay honest about what it did).
+The Quality axis grades each reply 0–10 + a one-line reason via
+[`waku/ops/judge.py`](../waku/ops/judge.py). The referee is **switchable from the
+arena** (the dropdown next to the "grade" toggle) and defaults to **gpt-5.6-sol**.
 
-**The rule that keeps it fair:** the judge is never one of the contestants in the
-race it's grading. For the K3 sponsorship video the hook is inverted on purpose —
-K3 grades the whole field *including itself* — so we surface that explicitly ("K3
-is judging this round") rather than hide it. For unbiased internal numbers, run
-the judge as a model that isn't racing.
+**Why not K3 as the judge:** you can't test K3 with K3 as the grader — a
+contestant judging its own round isn't credible, and (we hit this live) K3 was
+also *racing*, so judging every column at once hammered its own endpoint and
+429'd, blanking most grades. The referee should be a model that **isn't racing**.
+gpt-5.6-sol is the natural pick: a strong reasoning model that makes a poor
+*contestant* here (it can't call tools on the chat endpoint) but a fine *judge*
+(grading is pure text). Any provider works — Waku's OpenAI-compat client gives
+the judge the same interface as the anthropic wire.
+
+**What the grade means (say this on camera):** 0–10 for how well the reply serves
+the request — correct, honest, concise. 9–10 fully addresses it; 5–8 minor gaps;
+0 hallucinates or claims an action it didn't take.
+
+**The fairness fix that matters:** the judge sees only the reply *text*, so a
+truthful "I saved that" looked like a hallucination and scored 0 even though
+`save_note` really fired. The judge is now handed the **list of tools that
+actually ran** as ground truth, so a real action backed by a real tool call
+scores correctly (verified: same reply → 0 without the tool context, 10 with it).
 
 Best practice this mirrors: MT-Bench / Chatbot-Arena-style LLM-as-judge for
 open-ended quality, paired with programmatic outcome checks (τ-bench / SWE-bench
