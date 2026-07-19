@@ -48,6 +48,13 @@ async function clearCompareHistory(){
   compareState.history = r.runs || []; compareState.aggregate = r.aggregate || [];
   editing = false; render();
 }
+// Dismiss the race CARDS (the per-model columns) only — the cumulative
+// scoreboard/history is left alone. Handy for a clean slate before the next race.
+function clearCards(){
+  if (compareState.running) return;   // don't yank cards mid-race
+  compareState.order = []; compareState.results = {}; compareState.raceError = null;
+  saveCompare(); editing = false; render();
+}
 // A stored (slimmed) result -> the shape compareCol expects (gate object, tool
 // objects), so a past race renders identically to a live one.
 function adaptHistResult(r){
@@ -261,9 +268,13 @@ VIEWS.compare = function(d){
                      tokens:  r => (r.tokens_in || 0) + (r.tokens_out || 0) };
     const key = metric[compareState.sortBy] || metric.latency;
     const sorters = [["latency", "seconds"], ["tokens", "tokens"], ["cost", "money"]];
+    // "clear cards" dismisses the columns only (scoreboard/history untouched).
+    const clearBtn = (order.length && !compareState.running)
+      ? `<a class="reveal" style="margin-left:auto;font-size:12px" onclick="clearCards()">clear cards</a>` : "";
     // Prominent, tab-like sort buttons — the selected one is highlighted.
-    const sortBar = done.length ? `<div class="cmp-sortbar">sort by ${sorters.map(([k, label]) =>
-      `<button class="cmp-sortbtn ${compareState.sortBy === k ? "on" : ""}" onclick="setCompareSort('${k}')">${label}</button>`).join("")}</div>` : "";
+    const sortBar = (done.length || clearBtn) ? `<div class="cmp-sortbar">${done.length
+      ? `sort by ${sorters.map(([k, label]) => `<button class="cmp-sortbtn ${compareState.sortBy === k ? "on" : ""}" onclick="setCompareSort('${k}')">${label}</button>`).join("")}`
+      : ""}${clearBtn}</div>` : "";
     // Only a progress line while the race is still running; once every column is
     // in, the sort tabs + cards + scoreboard say it all (no redundant summary).
     const summary = done.length < order.length
