@@ -160,9 +160,13 @@ footing. Verified live: opus-4-8 and kimi-k3 both solve `code-fizzbuzz` (scored
 by real test execution). The scorer lives in
 [`waku/ops/coding_eval.py`](../waku/ops/coding_eval.py).
 
-**Still owed:** a coding column in the *live arena* (today it's the CLI table) —
-coding runs are multi-turn and slower than a chat turn, so they're a deliberate
-"coding round," and pi's token/cost aren't yet captured into the receipts.
+**In the live arena too:** turn on the **"coding (pi)"** toggle and race — each
+card runs the prompt through pi on **its own** model, with pi's **terminal
+streaming live** in the column, then scores by the case's `verify` (green
+"solved" / red "failed"). A free-form coding prompt ("build snake and run it")
+also works — pi runs it (it has a bash tool, so "run it" happens inside pi),
+there's just no test to score. Note: pi's token/cost aren't captured into the
+receipts yet, so coding rows show latency + solved, not cost.
 
 ### C. Memory & context
 
@@ -293,9 +297,10 @@ Speed/Cost/Tokens.
   battery case now scores each column live (green "solved" / red "failed · why"
   badge + a "solved" scoreboard column), via the one scorer in
   [`waku/ops/scoring.py`](../waku/ops/scoring.py) shared with `shootout.py`.
-- ~~Battery section B (coding) + cross-model pi~~ — **done (CLI)**: `make
-  shootout-coding` runs the coding battery through pi on any pinned model,
-  scored by tests. A coding column in the *live arena* is the remaining piece.
+- ~~Battery section B (coding) + cross-model pi~~ — **done, CLI *and* live arena**:
+  `make shootout-coding` for the table; in the arena, the "coding (pi)" toggle
+  runs each card through pi on its own model with the terminal streaming live,
+  scored by tests.
 - ~~Quality column (K3-as-judge) in the arena~~ — **done**: the "grade with K3"
   toggle judges each reply 0-10 ([`waku/ops/judge.py`](../waku/ops/judge.py));
   per-column badge + a "K3 grade" scoreboard column.

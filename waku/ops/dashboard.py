@@ -244,7 +244,8 @@ def compare_models(payload: dict) -> dict:
     return {"ok": True, "message": message, "results": results}
 
 
-def compare_stream(message: str, specs: list, emit, judge: bool = False) -> None:
+def compare_stream(message: str, specs: list, emit, judge: bool = False,
+                   coding: bool = False) -> None:
     """Race the models and stream each one's harness LIVE — gate decision and
     tool calls, per model — so every column plays out like the chat dock instead
     of a static 'racing…'. Each contestant runs the REAL loop (tools included) in
@@ -276,6 +277,30 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False) -> None
             emit(kind, ev)
             if kind == "result":
                 collected.append(ev)
+
+    def run_coding(spec):
+        """Coding mode: pi does the job on THIS card's model, its terminal
+        streaming live. Scored by the case's verify when the prompt is a known
+        coding case; a free-form prompt (e.g. 'build snake and run it') just runs
+        and shows the work."""
+        from waku.ops import coding_eval
+        provider, _, model = spec.partition(":")
+        send("start", {"spec": spec, "provider": provider, "model": model, "coding": True})
+        ccase = coding_eval.coding_case_for_message(message)
+        task = (ccase or {}).get("input", message)
+        files = (ccase or {}).get("files")
+        verify = (ccase or {}).get("verify")
+        t0 = time.perf_counter()
+        passed, why, secs = coding_eval.run_coding_stream(
+            provider, model, task, files, verify,
+            on_line=lambda ln: send("piline", {"spec": spec, "line": ln}))
+        completion = None
+        if verify and passed is not None:
+            completion = {"passed": passed, "why": why, "case": (ccase or {}).get("id", "coding")}
+        send("result", {"spec": spec, "provider": provider, "model": model, "coding": True,
+                        "latency_ms": int((time.perf_counter() - t0) * 1000),
+                        "reply": why or "", "completion": completion, "quality": None,
+                        "tools": [], "gate": None})
 
     def run(spec):
         provider, _, model = spec.partition(":")
@@ -333,8 +358,9 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False) -> None
         except Exception as exc:
             send("result", {"spec": spec, "provider": provider, "model": model, "error": str(exc)[:200]})
 
+    worker = run_coding if coding else run
     with ThreadPoolExecutor(max_workers=min(len(specs), 6)) as ex:
-        list(ex.map(run, specs))
+        list(ex.map(worker, specs))
     # Persist the race to the arena's own history (never the agent's real state).
     try:
         compare_history.append_run(load_settings().home, message, collected)
@@ -1372,7 +1398,7 @@ class Handler(BaseHTTPRequestHandler):
                     pass
             try:
                 compare_stream((payload.get("message") or "").strip(), payload.get("models") or [],
-                               emit, judge=bool(payload.get("judge")))
+                               emit, judge=bool(payload.get("judge")), coding=bool(payload.get("coding")))
             except Exception as exc:
                 emit("done", {"error": f"{type(exc).__name__}: {exc}"})
             return
