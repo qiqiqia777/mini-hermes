@@ -53,3 +53,10 @@ Frontend logic is not unit-tested; verify in the browser preview:
 sidebar tabs and the chat dock → check the console shows **zero errors**. The
 Python side (`dashboard.py` endpoints, `_thread_history`, pins, session resume)
 *is* covered by `evals/deterministic/`.
+
+**A running server does not pick up Python changes.** Static files here (`.js`,
+`.css`, `index.html`) are read from disk on every request, so a hard-reload shows
+them. But `dashboard.py` and everything it imports are held in memory — after
+pulling or editing backend code, **restart `make dashboard`**, or the page renders
+new markup against stale data (e.g. a new Settings panel that shows nothing because
+the old route isn't sending its fields).
