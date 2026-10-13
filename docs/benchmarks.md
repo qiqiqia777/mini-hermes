@@ -278,6 +278,74 @@ Sources: BenchLM, NxCode, OfficeChai, Trilogy AI (see chat log for links). These
 are **external** benchmarks; our battery (§3) is the reproducible local
 complement, not a substitute.
 
+### Domain anchors per pillar — memory / intent / guardrails
+
+Where the published literature stands on the same questions our battery asks,
+per pillar. These anchor *scale and motivation* ("is this hard for everyone?"),
+never our scores: different tasks, judges, and history lengths.
+
+**The quoting discipline (what keeps an answer honest on camera):**
+
+- **Never bridge harnesses.** "Outcome-based scoring, same family as τ-bench"
+  is allowed; "we would score X on it" is not. Our Completion axis and these
+  benchmarks share an *idea*, not a task set.
+- **Vendor-run numbers are named as vendor-run.** The LoCoMo table below comes
+  from the Mem0 paper — Mem0's harness, Mem0's judge — and was publicly
+  disputed by Zep and Letta. Quote as "Mem0-reported". (The dispute itself is
+  the argument for our rule that the referee never races, §5.)
+- **Every number keeps its口径 suffix** — judge, history length, domain, k.
+  The classic slip: quoting an oracle-evidence score as if it were the
+  full-history score.
+- **Verify before quoting.** Numbers below were checked against the linked
+  papers on 2026-10-13; the one marked "to verify" came from search results,
+  not the paper, and must be re-checked on the repo before on-camera use.
+
+- **Memory — LongMemEval** (ICLR 2025, [paper](https://arxiv.org/abs/2410.10813),
+  [data](https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned), MIT;
+  500 questions over extraction / multi-session / temporal / knowledge-update /
+  abstention; S variant ≈ 115k-token history): GPT-4o scores **0.870** with
+  oracle evidence vs **0.606** over full history (**−30.3%**); Llama 3.1 70B
+  0.744 → **0.334** (−55.1%). Commercial assistants were tested on a
+  *shortened* history (ChatGPT/GPT-4o 0.5773) — a different口径, never line it
+  up against the S numbers. Maps to our §3.C proposals: abstention ≈ the
+  retrieval gate refusing to retrieve (`retrieval-gate-negative`), and their
+  BM25 baseline is the honest comparison point for our FTS5 gate.
+- **Memory — LoCoMo-10** (ACL 2024, [repo](https://github.com/snap-research/LoCoMo);
+  J = LLM-as-judge; numbers **Mem0-reported** from
+  [arXiv:2504.19413](https://arxiv.org/abs/2504.19413), GPT-4o judge):
+  full-context GPT-4o **72.90** (p95 17.1s, ~26k tok) > Mem0^g **68.44**
+  (2.59s) > Mem0 **66.88** (1.44s) > Zep **65.99** (2.93s) > best RAG **60.97**
+  > LangMem **58.10** (p95 60.4s) > OpenAI memory **52.90** (0.889s). The
+  quotable story: *no dedicated memory system beat full context on quality —
+  they won on latency* (Mem0: −6 J for −91% p95). That is our trade too —
+  FTS5 + the gate buy speed and fewer wrong-context answers — and it names
+  what we owe: a compression-fidelity case proving consolidation doesn't lose
+  answerable facts (§3.C).
+- **Intent / tool trigger — BFCL** ([leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html),
+  [repo](https://github.com/ShishirPatil/gorilla)): v2 added **irrelevance
+  detection** (must NOT call a tool) — the failure mode our
+  `chitchat-no-action` case pins; v3 added multi-turn **state-based** checks —
+  the same idea as `read-before-write`. Scores live on a moving leaderboard
+  (last updated 2026-04-12, reproducible with `bfcl-eval==2025.12.17`): check
+  it the week you quote it, don't recite from memory.
+- **Guardrails / HITL — τ²-bench** (Sierra,
+  [paper](https://arxiv.org/abs/2506.07982), MIT; pass^1, user simulator is
+  gpt-4.1): GPT-4.1 goes retail **74%** / airline **56%** → telecom
+  dual-control **34%**; o4-mini **42%**, Claude 3.7 Sonnet **49%**. The
+  ablation is the point: adding the user back into the loop costs GPT-4.1
+  **−18** points and o4-mini **−25** — guiding the human is a measured
+  ~20-point difficulty jump, not a nicety. Also worth borrowing: **pass^k**
+  (all k attempts must succeed) is the right reliability metric to add to our
+  arena alongside `--trials 3`.
+- **Guardrails / HITL — AgentSafetyBench** (Princeton,
+  [repo](https://github.com/princeton-pli/AgentSafetyBench), Apache-2.0;
+  898 scenarios, 10 risk categories) — **to verify**, from search results, not
+  read off the repo yet: average unsafe rate **~38.8%** across 14 agents, none
+  above ~84% safe behavior; **~51.7%** of failures are the agent detecting the
+  issue and acting anyway without asking. If it checks out, it is the
+  published case for our §4 posture: risky tools behind opt-in, writes land as
+  outbox drafts, not as trust.
+
 ---
 
 ## 7. How to run

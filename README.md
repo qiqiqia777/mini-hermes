@@ -13,31 +13,6 @@ Built for [Sean's AI Stories](https://www.youtube.com/@SeanAIStories).
 - **Watch it think.** A local dashboard lights up every message as it flows through the harness.
 - **Eval built in.** Deterministic tests *and* LLM-as-judge, side by side, with a release gate.
 
-![waku-agent architecture — the whiteboard](docs/architecture-whiteboard.png)
-
-> The system-design whiteboard from the [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
-> series. For the **code-accurate** version (every box → a file it maps to), see
-> [The whiteboard maps to the code](#the-whiteboard-maps-to-the-code) below.
->
-> **▶ Watch the 20-min code walkthrough:** [You Can Build Your Own Local AI Agent](https://www.youtube.com/watch?v=rvRyBhILrls&list=PLE9hy4A7ZTmpGq7GHf5tgGFWh2277AeDR&index=42) — every part of this repo, live: the loop, the memory pillars, the evals, the Telegram gateway, and the "Waku Waku" voice wake word.
->
-> ---
-
-## Watch & follow
-
-- **Video walkthrough:** [You Can Build Your Own Local AI Agent In 20 Min](https://www.youtube.com/watch?v=rvRyBhILrls&list=PLE9hy4A7ZTmpGq7GHf5tgGFWh2277AeDR&index=42)
-- **YouTube:** [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
-- **X:** [@ShenSeanChen](https://x.com/ShenSeanChen)
-- **LinkedIn:** [shen-sean-chen](https://linkedin.com/in/shen-sean-chen)
-- **Instagram:** [@sean_ai_stories](https://www.instagram.com/sean_ai_stories)
-- **Discord:** [Sean's Discord](https://discord.gg/tvECErKcFr) · [AutoManus Discord](https://discord.gg/5HhcNjCR)
-
-## Support
-
-- ☕️ **Buy me a coffee:** [Cafe Latte](https://buy.stripe.com/5kA176bA895ggog4gh)
-- 🚀 **Launch Full-Stack App Template:** [launch-mvp-stripe-nextjs-supabase](https://github.com/ShenSeanChen/launch-mvp-stripe-nextjs-supabase) — NextJS + Supabase + Stripe, everything you need to ship a SaaS
-- 💻 **My AI startup:** [AutoManus.io](https://automanus.io) — an AI sales lead manager for made-to-order product sales. We embed where conversations happen (WhatsApp, email, web chat) to capture inbound, automate follow-ups, and kill CRM busywork. Pre-seed backed by Character VC.
-
 ## Quickstart
 
 ```bash
@@ -464,19 +439,4 @@ The point of a teaching repo is a readable core; these come alive one at a time,
 | Mock calendar (ICS + SQLite) | Apple / Google Calendar | `WAKU_APPLE_CALENDAR=1` (macOS), or swap `waku/tools/calendar.py` — the tool schema stays |
 | Hand-built memory pillars | mem0 / Letta / Zep | production frameworks that automate what this repo teaches |
 
-## Related repos (the building blocks)
-
-[launch-rag](https://github.com/ShenSeanChen/launch-rag) ·
-[launch-agentic-rag](https://github.com/ShenSeanChen/launch-agentic-rag) ·
-[launch-agent-skills](https://github.com/ShenSeanChen/launch-agent-skills) ·
-[launch-mcp-demo](https://github.com/ShenSeanChen/launch-mcp-demo) ·
-[launch-DeepResearch-Backend](https://github.com/ShenSeanChen/launch-DeepResearch-Backend)
-
-## Community
-
-Star the repo, join the [Discord](https://discord.gg/7Ntxzm3eJ), and grab a
-[good first issue](docs/good-first-issues.md) — gateway adapters (WhatsApp, Discord),
-memory backends, and community skills are all designed to be first PRs.
-
-MIT — see [LICENSE](LICENSE). Built by [@ShenSeanChen](https://github.com/ShenSeanChen)
-([YouTube](https://www.youtube.com/@SeanAIStories) · [X](https://x.com/ShenSeanChen)).
+MIT — see [LICENSE](LICENSE).
