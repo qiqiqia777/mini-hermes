@@ -1,4 +1,4 @@
-"""A tiny, self-contained MCP server — the demo connector for waku-agent.
+"""A tiny, self-contained MCP server — the demo connector for mini-hermes.
 
 Most MCP examples need Node/npx. This one is pure Python (only the `mcp` extra),
 so the connector story runs with zero extra installs:

@@ -1,4 +1,4 @@
-# waku-agent — one command per pillar.
+# mini-hermes — one command per pillar.
 #
 # Make is not a framework — it's a 45-year-old command shortcut tool that
 # ships with every Mac/Linux. Each target below is just the shell command

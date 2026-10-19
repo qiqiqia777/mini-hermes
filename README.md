@@ -1,4 +1,4 @@
-# waku-agent
+# mini-hermes
 
 **Your own AI assistant. On your laptop. In code you can read in an afternoon.**
 
@@ -16,7 +16,7 @@ Built for [Sean's AI Stories](https://www.youtube.com/@SeanAIStories).
 ## Quickstart
 
 ```bash
-git clone https://github.com/ShenSeanChen/waku-agent && cd waku-agent
+git clone https://github.com/qiqiqia777/mini-hermes && cd mini-hermes
 uv venv && uv pip install -e .          # create the env + install the `waku` command
 cp .env.example .env                    # pick a provider, paste ONE key
 uv run waku                             # talk to your Waku in the terminal
@@ -110,9 +110,7 @@ and remix it for your own team:
 | [`pi-architecture.excalidraw`](docs/whiteboards/pi-architecture.excalidraw) | pi (72K-star coding agent): 4-tool core, extensions, one EventStream |
 | [`waku-architecture.excalidraw`](docs/whiteboards/waku-architecture.excalidraw) | Waku itself — harness, loop, memory pillars, LLM Ops (editable rebuild of [the whiteboard](docs/architecture-whiteboard.png)) |
 
-New charts land here with every video. If they help you,
-[a star](https://github.com/ShenSeanChen/waku-agent) keeps them coming — and
-[sponsoring](https://github.com/sponsors/ShenSeanChen) gets new whiteboards early.
+The whiteboards are included as editable sources for exploring the systems they describe.
 
 ## The whiteboard maps to the code
 
@@ -134,11 +132,11 @@ flowchart LR
   MEM -->|every N chats| CONS["Consolidate → facts"] --> MEM
   REPLY --> OPS["LLM Ops<br/>trace → eval → gate → release"]
   OPS -. improved prompt/config .-> WM
-  WM -.- WATERMARK["waku-agent · Sean's AI Stories · @ShenSeanChen"]:::wm
+  WM -.- WATERMARK["mini-hermes · Sean's AI Stories · @ShenSeanChen"]:::wm
   classDef wm fill:none,stroke:none,color:#9aa0aa,font-size:11px;
 ```
 
-> _Architecture of **waku-agent** — built on [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
+> _Architecture of **mini-hermes** — built on [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
 > ([@ShenSeanChen](https://github.com/ShenSeanChen)). Code is MIT; **this diagram is licensed CC BY-NC-SA 4.0** —
 > reuse it with credit to the channel, not for commercial resale._
 
@@ -331,7 +329,7 @@ recent Apple Mail, cross-references your memory, and writes a focus-first briefi
 with clickable `message://` links. Cron it for a morning greeting:
 
 ```
-30 7 * * *  cd ~/waku-agent && make brief
+30 7 * * *  cd ~/mini-hermes && make brief
 ```
 
 It runs through the normal harness, so it animates on the dashboard like any turn.

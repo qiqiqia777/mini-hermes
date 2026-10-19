@@ -47,7 +47,7 @@ def main() -> None:
     try:
         import telegram  # noqa: F401
     except ImportError:
-        raise SystemExit("Telegram extra not installed: pip install 'waku-agent[telegram]'")
+        raise SystemExit("Telegram extra not installed: pip install 'mini-hermes[telegram]'")
 
     from waku.config import load_settings
 
@@ -73,7 +73,7 @@ def start_in_background() -> bool:
         import telegram  # noqa: F401
     except ImportError:
         print("(telegram) TELEGRAM_BOT_TOKEN is set but the extra isn't installed — "
-              "pip install 'waku-agent[telegram]'")
+              "pip install 'mini-hermes[telegram]'")
         return False
 
     import asyncio

@@ -9,7 +9,7 @@ Two outputs from the same events:
 2. OpenTelemetry spans, when OTEL_EXPORTER_OTLP_ENDPOINT is set: the same
    events as a span tree any OTel backend can render. For a local dashboard:
 
-       pip install 'waku-agent[tracing]'
+       pip install 'mini-hermes[tracing]'
        phoenix serve                                # localhost:6006
        OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 python -m waku
 
@@ -75,7 +75,7 @@ class Tracer:
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-            provider = TracerProvider(resource=Resource.create({"service.name": "waku-agent"}))
+            provider = TracerProvider(resource=Resource.create({"service.name": "mini-hermes"}))
             provider.add_span_processor(
                 BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_endpoint, insecure=True))
             )
@@ -84,7 +84,7 @@ class Tracer:
             return trace.get_tracer("waku")
         except ImportError:
             print("(tracing) OTEL endpoint set but opentelemetry not installed — "
-                  "pip install 'waku-agent[tracing]'. JSONL tracing still on.")
+                  "pip install 'mini-hermes[tracing]'. JSONL tracing still on.")
             return None
 
     def _write(self, record: dict) -> None:

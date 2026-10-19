@@ -2,7 +2,7 @@
 harness (so it traces and animates like any turn), composing your real calendar,
 mail, and memory into a focus-first summary. Cron it for a daily greeting:
 
-    30 7 * * *  cd ~/waku-agent && make brief
+    30 7 * * *  cd ~/mini-hermes && make brief
 
 The heavy lifting lives in skills/weekly-brief/SKILL.md — this just kicks off
 the turn and saves the result to the outbox.

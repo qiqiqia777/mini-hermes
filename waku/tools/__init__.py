@@ -56,6 +56,6 @@ def build_registry(conn: sqlite3.Connection, settings: Settings, memory=None) ->
                 registry.register(t)
             registry.mcp_bridge = bridge  # so Waku.close() can stop the servers
         except ImportError:
-            print("mcp.json found but the 'mcp' package is missing — pip install 'waku-agent[mcp]'")
+            print("mcp.json found but the 'mcp' package is missing — pip install 'mini-hermes[mcp]'")
 
     return registry

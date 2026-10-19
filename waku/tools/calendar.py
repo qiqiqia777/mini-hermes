@@ -43,7 +43,7 @@ def _write_ics(home: Path, title: str, start: str, end: str, attendees: str) -> 
     if ics_path.exists():
         body = ics_path.read_text().replace("END:VCALENDAR\n", "")
     else:
-        body = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//waku-agent//EN\n"
+        body = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//mini-hermes//EN\n"
     ics_path.write_text(body + event + "END:VCALENDAR\n")
 
 

@@ -1,4 +1,4 @@
-# waku-agent — working conventions
+# mini-hermes — working conventions
 
 **Waku** — a local-first personal assistant demonstrating the four pillars behind every
 serious agent: Harness, Loop, Memory, and Eval/LLM-Ops. It began as a teaching repo you

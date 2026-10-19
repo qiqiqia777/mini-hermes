@@ -1,4 +1,4 @@
-"""waku-agent — a minimal, transparent, local-first Waku.
+"""mini-hermes — a minimal, transparent, local-first Waku.
 
 Four pillars, one module each:
   harness  → waku/runtime + waku/gateway  (scaffolding around the raw LLM)

@@ -73,7 +73,7 @@ class Session:
                  # is the first question every curious user asks
                  f"Your model: you are running on '{self.settings.model}' via the "
                  f"'{self.settings.provider}' provider, inside Waku, a local-first "
-                 f"open-source agent harness (github.com/ShenSeanChen/waku-agent)."]
+                 f"open-source agent harness (github.com/qiqiqia777/mini-hermes)."]
 
         if self.memory is not None:
             # Hero moment #1: a cheap judge decides IF we retrieve at all —

@@ -1,7 +1,7 @@
 ---
 name: review-pr
 description: >
-  Review an incoming community PR for waku-agent and present it Sean's way —
+  Review an incoming community PR for mini-hermes and present it Sean's way —
   bilingual (English + 中文), three fixed sections: what they did & why it
   matters, verdict (merge / change / close), and how to see it visually. Use
   whenever Sean asks to look at, test, triage, or decide on a pull request.
@@ -9,7 +9,7 @@ description: >
 
 # Reviewing a PR, Sean's way
 
-Sean maintains waku-agent solo while a community sends PRs against the
+Sean maintains mini-hermes solo while a community sends PRs against the
 `good first issue` list. He needs to decide fast, without reading diffs, and he
 reads/repeats these decisions in both English and Chinese (for the channel).
 

@@ -2,7 +2,7 @@
 name: pr-worktree
 description: >
   Create and tear down the throwaway git worktrees used to test community PRs
-  for waku-agent, without leaking API keys or leaving branches behind. Use when
+  for mini-hermes, without leaking API keys or leaving branches behind. Use when
   setting up to test a PR, and ALWAYS after a PR is merged, closed, or parked.
 ---
 
@@ -14,7 +14,7 @@ must never leave a second copy of Sean's API keys on disk. Both have happened.
 ## Setting one up
 
 ```bash
-REPO=/Users/shenseanchen/Developer/waku-agent
+REPO=/Users/shenseanchen/Developer/mini-hermes
 N=<pr-number>
 git -C $REPO fetch -q origin pull/$N/head:pr-$N
 git -C $REPO worktree add -q ~/Developer/waku-prs/pr$N pr-$N
@@ -78,7 +78,7 @@ the contributor. Leaving it costs disk, confuses future greps, and may be sittin
 on a copy of every key.
 
 ```bash
-REPO=/Users/shenseanchen/Developer/waku-agent
+REPO=/Users/shenseanchen/Developer/mini-hermes
 # 1. rescue any new env vars into the MAIN .env first (see above)
 # 2. stop anything still running from it
 lsof -ti:7778 | xargs kill -9 2>/dev/null
