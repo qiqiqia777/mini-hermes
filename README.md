@@ -2,7 +2,7 @@
 
 **Your own AI assistant. On your laptop. In code you can read in an afternoon.**
 
-Meet **Waku** — a local-first personal assistant that shows the four pillars behind every
+Meet **MiniHermes** — a local-first personal assistant that shows the four pillars behind every
 serious agent: **Harness · Loop · Memory · Eval/LLM-Ops**. No frameworks hiding the good parts.
 Built for [Sean's AI Stories](https://www.youtube.com/@SeanAIStories).
 
@@ -17,36 +17,36 @@ Built for [Sean's AI Stories](https://www.youtube.com/@SeanAIStories).
 
 ```bash
 git clone https://github.com/qiqiqia777/mini-hermes && cd mini-hermes
-uv venv && uv pip install -e .          # create the env + install the `waku` command
+uv venv && uv pip install -e .          # create the env + install the `minihermes` command
 cp .env.example .env                    # pick a provider, paste ONE key
-uv run waku                             # talk to your Waku in the terminal
-uv run waku dashboard                   # …or the browser cockpit → localhost:7777
+uv run minihermes                             # talk to your MiniHermes in the terminal
+uv run minihermes dashboard                   # …or the browser cockpit → localhost:7777
 ```
 
-`uv run waku …` needs **no venv activation**. Three ways to run it:
+`uv run minihermes …` needs **no venv activation**. Three ways to run it:
 
 | Command | When |
 |---|---|
-| `uv run waku dashboard` | quick start, zero activation (recommended) |
-| `source .venv/bin/activate` → `waku dashboard` | activate once, bare `waku` all session |
-| `uv tool install .` → `waku dashboard` | install `waku` **globally**, forever |
+| `uv run minihermes dashboard` | quick start, zero activation (recommended) |
+| `source .venv/bin/activate` → `minihermes dashboard` | activate once, bare `minihermes` all session |
+| `uv tool install .` → `minihermes dashboard` | install `minihermes` **globally**, forever |
 
-`waku` and `waku dashboard` are two doors into the **same** Waku. The dashboard is a tiny web
+`minihermes` and `minihermes dashboard` are two doors into the **same** MiniHermes. The dashboard is a tiny web
 server on *your* machine — chat in the browser, that process runs the turn. Nothing leaves your
 laptop. Set `TELEGRAM_BOT_TOKEN` and it starts your bot too. (`make dashboard` works as well.)
 
 **Now try it.** *"Remember that Alex prefers morning meetings."* Quit. Restart.
 *"Book a catch-up with Alex on Friday."* → it remembers, and books 9am. Your memory is one
-file: `.waku/state.db`.
+file: `.minihermes/state.db`.
 
 **Use the model you already pay for.** Anthropic (default), OpenAI, Gemini, DeepSeek, MiniMax,
-Kimi, GLM, or OpenRouter (one key, hundreds of hosted models) — set `WAKU_PROVIDER=`, paste the key,
-done. One dialect in the loop; a [~60-line adapter](waku/loop/models.py) handles the rest.
+Kimi, GLM, or OpenRouter (one key, hundreds of hosted models) — set `MINIHERMES_PROVIDER=`, paste the key,
+done. One dialect in the loop; a [~60-line adapter](minihermes/loop/models.py) handles the rest.
 
 ## Watch the harness run — the dashboard
 
 ```bash
-waku dashboard          # starts a local server → http://localhost:7777
+minihermes dashboard          # starts a local server → http://localhost:7777
 ```
 
 A small web server you own (`127.0.0.1`, no cloud). The browser is just the UI — the same
@@ -84,7 +84,7 @@ Type these in the chat dock (or `make run`) and watch the dashboard light up:
 | *"Search for the World Cup games still left to play and add each one to my calendar"* | **multi-tool loop engineering** | **Loop** tab shows `iter 8`: `search_web` × N → `create_event` × N |
 | chat from `make run` **and** the browser | one brain, many gateways | the **Gateway** tab tags each message `cli` / `dashboard` |
 
-**The money shot** is the World Cup one. In one turn, Waku searches the web a few times, reasons
+**The money shot** is the World Cup one. In one turn, MiniHermes searches the web a few times, reasons
 over the results, and books every remaining match — **8 loop iterations**, live. Needs a free
 `TAVILY_API_KEY` (paste it in **Settings**). Watch the **LOOP** box pulse per cycle. That's loop
 engineering, on tape.
@@ -108,7 +108,7 @@ and remix it for your own team:
 |---|---|
 | [`k3-architecture.excalidraw`](docs/whiteboards/k3-architecture.excalidraw) | Kimi K3: the 16-of-896 MoE, KDA + AttnRes attention, why agent loops get cheap |
 | [`pi-architecture.excalidraw`](docs/whiteboards/pi-architecture.excalidraw) | pi (72K-star coding agent): 4-tool core, extensions, one EventStream |
-| [`waku-architecture.excalidraw`](docs/whiteboards/waku-architecture.excalidraw) | Waku itself — harness, loop, memory pillars, LLM Ops (editable rebuild of [the whiteboard](docs/architecture-whiteboard.png)) |
+| [`minihermes-architecture.excalidraw`](docs/whiteboards/minihermes-architecture.excalidraw) | MiniHermes itself — harness, loop, memory pillars, LLM Ops (editable rebuild of [the whiteboard](docs/architecture-whiteboard.png)) |
 
 The whiteboards are included as editable sources for exploring the systems they describe.
 
@@ -144,29 +144,29 @@ Every box is one module (full version with every file path: [docs/architecture.m
 
 | Diagram box | Module |
 |---|---|
-| Gateway Interface (CLI / voice / Telegram / web) | [`waku/gateway/`](waku/gateway) |
-| Ephemeral Agent Run → Working Memory | [`waku/runtime/session.py`](waku/runtime/session.py) |
-| The Loop (LLM ↔ tools, end-loop guardrails) | [`waku/loop/agent.py`](waku/loop/agent.py) |
-| Agentic Tools (schedule / note / message) | [`waku/tools/`](waku/tools) |
-| Procedural Memory (SKILL.md, "how to act") | [`waku/memory/procedural/`](waku/memory/procedural) + [`skills/`](skills) |
-| Semantic Memory (durable facts, profile) | [`waku/memory/semantic/`](waku/memory/semantic) |
-| Episodic Memory (dated events, past chats) | [`waku/memory/episodic/`](waku/memory/episodic) |
-| "Should we even retrieve?" gate | [`waku/memory/retrieval_gate.py`](waku/memory/retrieval_gate.py) |
-| Consolidate after N chats → summarizer | [`waku/memory/consolidation.py`](waku/memory/consolidation.py) |
-| Trace (1 trace per run) | [`waku/ops/tracing.py`](waku/ops/tracing.py) |
+| Gateway Interface (CLI / voice / Telegram / web) | [`minihermes/gateway/`](minihermes/gateway) |
+| Ephemeral Agent Run → Working Memory | [`minihermes/runtime/session.py`](minihermes/runtime/session.py) |
+| The Loop (LLM ↔ tools, end-loop guardrails) | [`minihermes/loop/agent.py`](minihermes/loop/agent.py) |
+| Agentic Tools (schedule / note / message) | [`minihermes/tools/`](minihermes/tools) |
+| Procedural Memory (SKILL.md, "how to act") | [`minihermes/memory/procedural/`](minihermes/memory/procedural) + [`skills/`](skills) |
+| Semantic Memory (durable facts, profile) | [`minihermes/memory/semantic/`](minihermes/memory/semantic) |
+| Episodic Memory (dated events, past chats) | [`minihermes/memory/episodic/`](minihermes/memory/episodic) |
+| "Should we even retrieve?" gate | [`minihermes/memory/retrieval_gate.py`](minihermes/memory/retrieval_gate.py) |
+| Consolidate after N chats → summarizer | [`minihermes/memory/consolidation.py`](minihermes/memory/consolidation.py) |
+| Trace (1 trace per run) | [`minihermes/ops/tracing.py`](minihermes/ops/tracing.py) |
 | Eval: deterministic vs LLM-as-judge | [`evals/deterministic/`](evals/deterministic) vs [`evals/judge/`](evals/judge) |
-| Gate → Release | [`waku/ops/release_gate.py`](waku/ops/release_gate.py) |
+| Gate → Release | [`minihermes/ops/release_gate.py`](minihermes/ops/release_gate.py) |
 
 **A note on `MEMORY.md` vs `state.db`.** Some assistants (e.g. Hermes) keep long-term memory as a
-single `MEMORY.md` markdown file. Waku keeps the *queryable* source in `state.db` (the `facts` and
+single `MEMORY.md` markdown file. MiniHermes keeps the *queryable* source in `state.db` (the `facts` and
 `episodes` tables, keyword-searchable via FTS5) **and** regenerates a human-readable
-`.waku/MEMORY.md` mirror after every turn — so you get both: a real file you can open, backed by a
+`.minihermes/MEMORY.md` mirror after every turn — so you get both: a real file you can open, backed by a
 sturdy database. The dashboard's **Memory** tab is the friendly view; the **Database** tab shows the
 raw `state.db` tables.
 
 ## The Loop — reason → act → repeat
 
-Yes, there's a real agent loop, and it's [~95 lines of plain Python](waku/loop/agent.py) —
+Yes, there's a real agent loop, and it's [~95 lines of plain Python](minihermes/loop/agent.py) —
 no LangGraph, no hidden control flow:
 
 ```
@@ -189,7 +189,7 @@ conditions, the tool round-trip, and feeding results back as working memory.
 2. Open the **Loop** tab — every turn is listed with its gate decision, each tool call, the
    **iteration count**, tokens, and dollar cost. A tool-using turn shows `iter 2` (reason,
    act, then reason again to reply); a plain answer shows `iter 1`.
-3. Open the **Ops** tab (or `.waku/traces/<today>.jsonl`) to read that same turn as raw
+3. Open the **Ops** tab (or `.minihermes/traces/<today>.jsonl`) to read that same turn as raw
    events in order: `turn_start → gate → llm → tool → llm → turn_end`. That's the loop, on tape.
 
 **The multi-tool loop (the money shot).** One tool is a loop; *chaining* tools is where loop
@@ -197,8 +197,8 @@ engineering earns its name. Try:
 
 > *"Search for the World Cup games still left to play and add each one to my calendar."*
 
-The agent loops across two tools: [`search_web`](waku/tools/search.py) reads the web, it
-reasons over the results, then calls [`create_event`](waku/tools/calendar.py) once per match —
+The agent loops across two tools: [`search_web`](minihermes/tools/search.py) reads the web, it
+reasons over the results, then calls [`create_event`](minihermes/tools/calendar.py) once per match —
 several iterations in a single turn. You'll see `iter 4`, `iter 5`… on the Loop tab and the
 LOOP box pulse for each cycle. `search_web` works keyless via DuckDuckGo but that endpoint
 rate-limits bots, so for a clean take set a free `TAVILY_API_KEY` (see [`.env.example`](.env.example)).
@@ -244,16 +244,16 @@ per-turn gate decisions, and the raw traces inline.
 **The bug workflow (this is the discipline you show on camera):** when you catch a bug by using
 the thing live, you fix it AND add a deterministic case so it can never come back. A real example
 from this repo: the agent didn't know the current *time* and asked for it before scheduling
-"in 30 minutes" → fixed in [`session.py`](waku/runtime/session.py), locked forever by
+"in 30 minutes" → fixed in [`session.py`](minihermes/runtime/session.py), locked forever by
 [`test_working_memory.py`](evals/deterministic/test_working_memory.py). Run `make gate` → green →
 the eval history records the run.
 
-**Spend is permanent:** every LLM call's tokens are appended to `.waku/usage.jsonl` — an
+**Spend is permanent:** every LLM call's tokens are appended to `.minihermes/usage.jsonl` — an
 append-only ledger that a demo reset never wipes. The **Ops** tab shows the all-time cost, tokens,
 and a per-day / per-provider breakdown (dollar cost is estimated from tokens, which are the ground
 truth). So the number you show on camera is your real running total, not a per-session guess.
 
-**Tracing is always on:** every turn appends readable lines to `.waku/traces/<date>.jsonl`
+**Tracing is always on:** every turn appends readable lines to `.minihermes/traces/<date>.jsonl`
 (zero setup) — a trace is just "what happened, in order." For span-waterfall views:
 
 ```bash
@@ -267,10 +267,10 @@ Langfuse cloud speaks the same OTel toggle.
 ## Recording a clean demo
 
 ```bash
-python scripts/demo_seed.py --yes      # resets .waku to a tidy, curated state (--yes required)
+python scripts/demo_seed.py --yes      # resets .minihermes to a tidy, curated state (--yes required)
 ```
 
-It backs up your current `.waku` first, then seeds a few clean facts, one episode, and one
+It backs up your current `.minihermes` first, then seeds a few clean facts, one episode, and one
 event — Sergey's standing **Saturday 5 PM swim**. The chat log and traces start **empty**, so
 when you type live the Loop, traces, and Gateway inbox fill up in front of the viewer. The
 memory/Data/Tools tabs already have tidy content to explain. Edit the seed lists at the top of
@@ -280,22 +280,22 @@ the script to taste.
 
 ```bash
 uv pip install -e '.[voice]'
-waku voice        # hands-free: always-listening for "waku waku"
+minihermes voice        # hands-free: always-listening for "minihermes minihermes"
 ```
 
-**Hands-free by default.** `waku voice` listens for the wake word **"waku waku"** — a tiny
+**Hands-free by default.** `minihermes voice` listens for the wake word **"minihermes minihermes"** — a tiny
 Whisper model scans the mic; when it hears the phrase, the big model takes over for your
 command and speaks the reply. Change or disable it:
 
 ```bash
-WAKU_WAKE_WORD="hey waku"  waku voice     # any phrase, no training
-WAKU_WAKE_WORD=""          waku voice     # push-to-talk instead (Enter, speak, Enter)
+MINIHERMES_WAKE_WORD="hey minihermes"  minihermes voice     # any phrase, no training
+MINIHERMES_WAKE_WORD=""          minihermes voice     # push-to-talk instead (Enter, speak, Enter)
 ```
 
 The matcher is ~15 transparent lines with a deterministic eval; it accepts cross-script
-variants (`"waku waku,わくわく"`). A trained openWakeWord model is the efficient v2 upgrade.
+variants (`"minihermes minihermes,わくわく"`). A trained openWakeWord model is the efficient v2 upgrade.
 
-**A beautiful voice.** Out of the box it uses macOS `say` — and Waku auto-picks the nicest
+**A beautiful voice.** Out of the box it uses macOS `say` — and MiniHermes auto-picks the nicest
 voice you have, preferring a downloaded Premium/Enhanced one (System Settings ▸ Accessibility
 ▸ Spoken Content ▸ System Voice) over the robotic built-ins. For the real neural upgrade,
 install [Kokoro](https://github.com/hexgrad/kokoro) — a fully local, offline British-butler
@@ -305,7 +305,7 @@ voice that's picked up automatically, no env var needed:
 uv pip install '.[voice-neural]'          # neural Kokoro (bm_george); pulls torch (~2GB)
 ```
 
-Override either engine with `WAKU_VOICE` (a `say` voice name, or a Kokoro voice like `bf_emma`).
+Override either engine with `MINIHERMES_VOICE` (a `say` voice name, or a Kokoro voice like `bf_emma`).
 
 ## Phone to laptop
 
@@ -321,10 +321,10 @@ public URL or webhook. Set `TELEGRAM_ALLOWED_USER` to lock it to just you.
 ## Brief me on my week (Apple Calendar + Mail)
 
 ```bash
-WAKU_APPLE_TOOLS=1 make brief      # macOS; grant the permission prompts once
+MINIHERMES_APPLE_TOOLS=1 make brief      # macOS; grant the permission prompts once
 ```
 
-Waku reads your **real** Calendar.app (including events invited by email) and
+MiniHermes reads your **real** Calendar.app (including events invited by email) and
 recent Apple Mail, cross-references your memory, and writes a focus-first briefing
 with clickable `message://` links. Cron it for a morning greeting:
 
@@ -340,7 +340,7 @@ The agent has tools to keep itself useful — no black box:
 - **manage_memory** — correct or forget a fact when you say it's wrong.
 - **update_soul** — save a standing preference you give it (lives in `SOUL.md`).
 - **create_skill** — when you teach it a repeatable workflow, it offers to save it
-  as a skill (written to `.waku/skills/`, live the same session).
+  as a skill (written to `.minihermes/skills/`, live the same session).
 
 You can also edit any of this by hand on the dashboard's Memory tab (edit/delete
 facts, rewrite `SOUL.md`) or in Settings (switch provider/model, paste keys — BYOK,
@@ -352,7 +352,7 @@ kept in your local `.env`, never sent to the browser).
 pip install -e '.[mcp]'
 ```
 
-Create `.waku/mcp.json` and any Model Context Protocol server's tools appear to
+Create `.minihermes/mcp.json` and any Model Context Protocol server's tools appear to
 the agent, namespaced `<server>_<tool>` (and in the dashboard's Tools ▸ MCP tab):
 
 ```json
@@ -363,18 +363,18 @@ the agent, namespaced `<server>_<tool>` (and in the dashboard's Tools ▸ MCP ta
 **Node-free demo** — a tiny self-contained Python MCP server ships in the repo:
 
 ```bash
-cp examples/mcp.demo.json .waku/mcp.json   # points at examples/mcp_demo_server.py
+cp examples/mcp.demo.json .minihermes/mcp.json   # points at examples/mcp_demo_server.py
 make dashboard                               # demo_word_count / demo_reverse_text appear in Tools
 ```
 
-Same pattern scales to any server, yours or a vendor's — no changes to Waku's code.
+Same pattern scales to any server, yours or a vendor's — no changes to MiniHermes's code.
 
 ## Add skills — yours or the community's
 
 Skills are procedural memory: markdown instructions loaded only when relevant.
 
 ```bash
-python -m waku skill install https://github.com/<someone>/<repo>/blob/main/skills/<skill>/SKILL.md
+python -m minihermes skill install https://github.com/<someone>/<repo>/blob/main/skills/<skill>/SKILL.md
 ```
 
 **Contribute one — it's just a markdown file.** Copy [`skills/TEMPLATE.md`](skills/TEMPLATE.md),
@@ -383,15 +383,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Every command
 
-The `waku` command is installed with the package; the `make` targets are equivalent aliases.
+The `minihermes` command is installed with the package; the `make` targets are equivalent aliases.
 
 | Command | Does |
 |---|---|
-| `waku` | chat in the terminal |
-| `waku dashboard` | the live cockpit at localhost:7777 (+ Telegram if `TELEGRAM_BOT_TOKEN` is set) |
-| `waku voice` | talk to it — hands-free "waku waku" (or push-to-talk) |
-| `waku telegram` | message it from your phone (standalone) |
-| `waku brief` | morning briefing from Calendar + Mail + memory |
+| `minihermes` | chat in the terminal |
+| `minihermes dashboard` | the live cockpit at localhost:7777 (+ Telegram if `TELEGRAM_BOT_TOKEN` is set) |
+| `minihermes voice` | talk to it — hands-free "minihermes minihermes" (or push-to-talk) |
+| `minihermes telegram` | message it from your phone (standalone) |
+| `minihermes brief` | morning briefing from Calendar + Mail + memory |
 | `make trace` | deep trace waterfalls (Phoenix) at localhost:6006 |
 | `make eval` | deterministic evals (0/1, no judge) |
 | `make eval-judge` | LLM-as-judge evals (scored %) |
@@ -399,22 +399,22 @@ The `waku` command is installed with the package; the `make` targets are equival
 
 ## Roadmap — the whiteboard boxes beyond the flagship task
 
-These live in [`waku/tools/experimental.py`](waku/tools/experimental.py), OFF by default —
-`WAKU_EXPERIMENTAL=1` registers them.
+These live in [`minihermes/tools/experimental.py`](minihermes/tools/experimental.py), OFF by default —
+`MINIHERMES_EXPERIMENTAL=1` registers them.
 
 **Sub-Agents is now LIVE.** `delegate_task` hands a coding job to
 [pi](https://github.com/earendil-works/pi) — Mario Zechner's minimal open-source coding agent —
-through its headless print mode (`pi -p "task"`). Waku stays the orchestrator (memory, context,
+through its headless print mode (`pi -p "task"`). MiniHermes stays the orchestrator (memory, context,
 evals); pi is the specialist contractor (read/bash/edit/write). Try it:
 
 ```bash
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
-WAKU_EXPERIMENTAL=1 uv run waku
+MINIHERMES_EXPERIMENTAL=1 uv run minihermes
 # "have pi fix the failing test in ~/my-project"
 ```
 
-The full pi transcript lands in `.waku/outbox/delegate-*.log`; tune the budget with
-`WAKU_DELEGATE_TIMEOUT` (default 300s).
+The full pi transcript lands in `.minihermes/outbox/delegate-*.log`; tune the budget with
+`MINIHERMES_DELEGATE_TIMEOUT` (default 300s).
 
 The rest are still deliberate **skeletons** — the intent is drawn so the diagram maps to
 something, but nothing is over-promised (they report "coming soon", and the dashboard's
@@ -433,8 +433,8 @@ The point of a teaching repo is a readable core; these come alive one at a time,
 
 | Default (zero setup) | Upgrade | How |
 |---|---|---|
-| SQLite FTS5 keyword memory | Supabase pgvector semantic search | `WAKU_SEMANTIC_STORE=supabase` + [sql/init_supabase.sql](sql/init_supabase.sql) — the exact schema from [launch-rag](https://github.com/ShenSeanChen/launch-rag)/[launch-agentic-rag](https://github.com/ShenSeanChen/launch-agentic-rag) |
-| Mock calendar (ICS + SQLite) | Apple / Google Calendar | `WAKU_APPLE_CALENDAR=1` (macOS), or swap `waku/tools/calendar.py` — the tool schema stays |
+| SQLite FTS5 keyword memory | Supabase pgvector semantic search | `MINIHERMES_SEMANTIC_STORE=supabase` + [sql/init_supabase.sql](sql/init_supabase.sql) — the exact schema from [launch-rag](https://github.com/ShenSeanChen/launch-rag)/[launch-agentic-rag](https://github.com/ShenSeanChen/launch-agentic-rag) |
+| Mock calendar (ICS + SQLite) | Apple / Google Calendar | `MINIHERMES_APPLE_CALENDAR=1` (macOS), or swap `minihermes/tools/calendar.py` — the tool schema stays |
 | Hand-built memory pillars | mem0 / Letta / Zep | production frameworks that automate what this repo teaches |
 
 MIT — see [LICENSE](LICENSE).

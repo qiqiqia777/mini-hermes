@@ -9,10 +9,15 @@ traces/
 dist/
 .pytest_cache/
 .ruff_cache/
+.minihermes/
+.minihermes.bak-*/
+.minihermes.prerename-bak/
+.env.prerename-bak
+
+# Keep legacy runtime state ignored while an existing install still uses it.
 .waku/
 .waku.bak-*/
 .waku.prerename-bak/
-.env.prerename-bak
 
 # Delegated coding deliverables (dated run folders + auto-run logs)
-waku_workspace/
+minihermes_workspace/

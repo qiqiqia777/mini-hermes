@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from waku.ops.show_trace import render_trace
+from minihermes.ops.show_trace import render_trace
 
 
 def test_trace_renders_an_indented_timeline(tmp_path):

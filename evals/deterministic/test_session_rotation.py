@@ -2,13 +2,13 @@
 
 Live bug: a tester returned days later and their fresh 'what's up' landed in a
 week-old 32-message thread. New rule: if the current session's newest message
-is older than WAKU_SESSION_IDLE_MINUTES, the next chat starts a new thread
+is older than MINIHERMES_SESSION_IDLE_MINUTES, the next chat starts a new thread
 (old one stays in History)."""
 
 from __future__ import annotations
 
-from evals.helpers import ScriptedClient, make_waku
-from waku.ops.dashboard import _maybe_rotate_session
+from evals.helpers import ScriptedClient, make_minihermes
+from minihermes.ops.dashboard import _maybe_rotate_session
 
 
 def _seed(app, session_id, age_minutes):
@@ -21,8 +21,8 @@ def _seed(app, session_id, age_minutes):
 
 
 def test_idle_session_rotates(tmp_path, monkeypatch):
-    monkeypatch.setenv("WAKU_SESSION_IDLE_MINUTES", "60")
-    app = make_waku(tmp_path / "home", client=ScriptedClient([]))
+    monkeypatch.setenv("MINIHERMES_SESSION_IDLE_MINUTES", "60")
+    app = make_minihermes(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
     _seed(app, before, age_minutes=120)          # 2h idle > 60m threshold
     _maybe_rotate_session(app)
@@ -32,8 +32,8 @@ def test_idle_session_rotates(tmp_path, monkeypatch):
 
 
 def test_active_session_stays(tmp_path, monkeypatch):
-    monkeypatch.setenv("WAKU_SESSION_IDLE_MINUTES", "60")
-    app = make_waku(tmp_path / "home", client=ScriptedClient([]))
+    monkeypatch.setenv("MINIHERMES_SESSION_IDLE_MINUTES", "60")
+    app = make_minihermes(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
     _seed(app, before, age_minutes=5)            # active conversation
     _maybe_rotate_session(app)
@@ -41,16 +41,16 @@ def test_active_session_stays(tmp_path, monkeypatch):
 
 
 def test_empty_session_stays(tmp_path, monkeypatch):
-    monkeypatch.setenv("WAKU_SESSION_IDLE_MINUTES", "60")
-    app = make_waku(tmp_path / "home", client=ScriptedClient([]))
+    monkeypatch.setenv("MINIHERMES_SESSION_IDLE_MINUTES", "60")
+    app = make_minihermes(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
     _maybe_rotate_session(app)                   # no messages at all -> no-op
     assert app.session.session_id == before
 
 
 def test_rotation_can_be_disabled(tmp_path, monkeypatch):
-    monkeypatch.setenv("WAKU_SESSION_IDLE_MINUTES", "0")
-    app = make_waku(tmp_path / "home", client=ScriptedClient([]))
+    monkeypatch.setenv("MINIHERMES_SESSION_IDLE_MINUTES", "0")
+    app = make_minihermes(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
     _seed(app, before, age_minutes=10000)
     _maybe_rotate_session(app)
@@ -61,12 +61,12 @@ def test_provider_switch_resets_stale_model_overrides(tmp_path, monkeypatch):
     """Live bug: kimi -> gemini kept gate model kimi-k3; every turn then 404'd
     against Gemini. A provider change must reset any model field the user
     didn't newly type."""
-    from waku.ops import dashboard
+    from minihermes.ops import dashboard
 
     captured = {}
-    monkeypatch.setenv("WAKU_PROVIDER", "kimi")
-    monkeypatch.setenv("WAKU_MODEL", "kimi-k3")
-    monkeypatch.setenv("WAKU_SMALL_MODEL", "kimi-k3")
+    monkeypatch.setenv("MINIHERMES_PROVIDER", "kimi")
+    monkeypatch.setenv("MINIHERMES_MODEL", "kimi-k3")
+    monkeypatch.setenv("MINIHERMES_SMALL_MODEL", "kimi-k3")
     monkeypatch.setenv("GEMINI_API_KEY", "fake-key-for-tests")
     monkeypatch.setattr(dashboard, "find_dotenv", lambda **k: "", raising=False)
 
@@ -82,8 +82,8 @@ def test_provider_switch_resets_stale_model_overrides(tmp_path, monkeypatch):
                                   "small_model": "kimi-k3", "keys": {}})
     except RuntimeError:
         pass
-    assert captured.get("WAKU_MODEL", "unset") in ("", "unset") or \
-        captured.get("WAKU_PROVIDER") == "gemini"
+    assert captured.get("MINIHERMES_MODEL", "unset") in ("", "unset") or \
+        captured.get("MINIHERMES_PROVIDER") == "gemini"
     # the actual contract: stale kimi ids must have been blanked
-    assert captured.get("WAKU_MODEL") != "kimi-k3"
-    assert captured.get("WAKU_SMALL_MODEL") != "kimi-k3"
+    assert captured.get("MINIHERMES_MODEL") != "kimi-k3"
+    assert captured.get("MINIHERMES_SMALL_MODEL") != "kimi-k3"

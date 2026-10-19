@@ -1,6 +1,6 @@
-# Contributing to Waku
+# Contributing to MiniHermes
 
-Waku started as a teaching repo you could read in an afternoon, and it's growing toward a
+MiniHermes started as a teaching repo you could read in an afternoon, and it's growing toward a
 full local-first assistant — the next Hermes / OpenClaw, with 1/100th the code. Contributions
 are genuinely welcome. The project will get bigger; the one thing it must never do is get
 *muddier*.
@@ -17,20 +17,20 @@ how the system works is what we push back on.
 4. Open a PR. CI runs the same validator.
 
 Anyone can then try your skill instantly:
-`waku skill install <link to your SKILL.md>`
+`minihermes skill install <link to your SKILL.md>`
 
 ## Code contributions
 
 Good places to add real value:
 
-- **Providers** (`waku/loop/models.py`): most models expose an OpenAI- or Anthropic-compatible
+- **Providers** (`minihermes/loop/models.py`): most models expose an OpenAI- or Anthropic-compatible
   endpoint, so a new provider is usually one `PROVIDERS` row — no new wire code. Add a pricing
   row in the dashboard and a case to `evals/deterministic/test_providers.py`.
-- **Gateways** (`waku/gateway/`): receive/send for a new channel (WhatsApp, Discord, Slack,
+- **Gateways** (`minihermes/gateway/`): receive/send for a new channel (WhatsApp, Discord, Slack,
   email). Keep it to one file; the CLI gateway is the reference.
-- **Memory stores** (`waku/memory/semantic/`): match the `add`/`search` interface of
+- **Memory stores** (`minihermes/memory/semantic/`): match the `add`/`search` interface of
   `SqliteFactStore`. The Supabase adapter is the reference.
-- **Tools** (`waku/tools/`): a new capability the agent can call. Follow `calendar.py` and the
+- **Tools** (`minihermes/tools/`): a new capability the agent can call. Follow `calendar.py` and the
   `new-tool` skill — schema, safe execution, honest output, and a deterministic eval.
 
 Two rules that keep contributions safe to merge:
@@ -52,7 +52,7 @@ tested on their own. When we say no, we'll explain why — and forking is always
 
 ## A note on safety
 
-Because Waku runs on people's own machines with their own keys, PRs must never add hidden
+Because MiniHermes runs on people's own machines with their own keys, PRs must never add hidden
 network calls, read or transmit secrets/`.env`, or run code at install time. Keep it local,
 keep it legible.
 

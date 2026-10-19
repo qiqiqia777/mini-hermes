@@ -1,7 +1,7 @@
 {
  "type": "excalidraw",
  "version": 2,
- "source": "https://github.com/ShenSeanChen/waku-agent",
+ "source": "https://github.com/ShenSeanChen/minihermes-agent",
  "elements": [
   {
    "id": "title",
@@ -1907,13 +1907,13 @@
    "updated": 1752760000000,
    "link": null,
    "locked": false,
-   "text": "honest ink (their own blog):\nK3 still trails Fable 5 and\nGPT 5.6 Sol overall. It claims\nwins over Opus 4.8 on kernel +\nagentic suites.\n\nclaims are not receipts ->\nwe test it in Waku:\n  make shootout\nsame agent, same tasks,\npass rate + dollars + latency",
+   "text": "honest ink (their own blog):\nK3 still trails Fable 5 and\nGPT 5.6 Sol overall. It claims\nwins over Opus 4.8 on kernel +\nagentic suites.\n\nclaims are not receipts ->\nwe test it in MiniHermes:\n  make shootout\nsame agent, same tasks,\npass rate + dollars + latency",
    "fontSize": 15,
    "fontFamily": 1,
    "textAlign": "left",
    "verticalAlign": "top",
    "containerId": null,
-   "originalText": "honest ink (their own blog):\nK3 still trails Fable 5 and\nGPT 5.6 Sol overall. It claims\nwins over Opus 4.8 on kernel +\nagentic suites.\n\nclaims are not receipts ->\nwe test it in Waku:\n  make shootout\nsame agent, same tasks,\npass rate + dollars + latency",
+   "originalText": "honest ink (their own blog):\nK3 still trails Fable 5 and\nGPT 5.6 Sol overall. It claims\nwins over Opus 4.8 on kernel +\nagentic suites.\n\nclaims are not receipts ->\nwe test it in MiniHermes:\n  make shootout\nsame agent, same tasks,\npass rate + dollars + latency",
    "lineHeight": 1.25,
    "baseline": 15
   },

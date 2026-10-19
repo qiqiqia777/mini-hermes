@@ -1,5 +1,5 @@
 """Shared eval plumbing: a scripted fake LLM client for offline tests, and a
-real-Waku factory for live ones."""
+real-MiniHermes factory for live ones."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 def _has_key() -> bool:
-    """True when the ACTIVE provider (WAKU_PROVIDER) has its key set, so live
+    """True when the ACTIVE provider (MINIHERMES_PROVIDER) has its key set, so live
     evals run on whatever the user actually configured (anthropic, openrouter,
     gemini, ...), not only on ANTHROPIC_API_KEY."""
-    from waku.config import load_settings
-    from waku.loop.models import PROVIDERS
+    from minihermes.config import load_settings
+    from minihermes.loop.models import PROVIDERS
 
     settings = load_settings()
     provider = PROVIDERS.get(settings.provider)
@@ -49,14 +49,14 @@ class ScriptedClient:
         return self._script.pop(0)
 
 
-def make_waku(home: Path, client=None, **settings_overrides):
-    """Build a Waku with an isolated home dir; optionally swap in a fake client."""
-    from waku.app import Waku
-    from waku.config import Settings
+def make_minihermes(home: Path, client=None, **settings_overrides):
+    """Build a MiniHermes with an isolated home dir; optionally swap in a fake client."""
+    from minihermes.app import MiniHermes
+    from minihermes.config import Settings
 
     # evals must NEVER touch the real Apple Calendar, whatever .env says
     settings_overrides.setdefault("apple_calendar", False)
     settings = Settings(home=home, **settings_overrides)
     if client is not None and not settings.api_key:
         settings.api_key = "offline"  # never read the real key for scripted runs
-    return Waku(settings=settings, client=client)
+    return MiniHermes(settings=settings, client=client)
