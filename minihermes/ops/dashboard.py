@@ -30,7 +30,7 @@ from pathlib import Path
 
 from minihermes.config import load_settings
 from minihermes.db import connect
-from minihermes.ops import compare_history, judge as judge_mod, scoring
+from minihermes.ops import compare_history, crm_read, judge as judge_mod, scoring
 from minihermes.ops.tracing import TraceEncodingError, iter_trace_lines
 
 PORT = 7777
@@ -1471,8 +1471,10 @@ def events_since(cursor):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def _send(self, body: bytes, ctype: str, *, no_cache: bool = False) -> None:
-        self.send_response(200)
+    def _send(
+        self, body: bytes, ctype: str, *, no_cache: bool = False, status: int = 200,
+    ) -> None:
+        self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         # The frontend files (app.js/style.css) change as we develop; without
@@ -1485,6 +1487,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802 — http.server API
         if self.path == "/api/data":
             self._send(json.dumps(collect(), default=str).encode(), "application/json")
+        elif self.path == "/api/crm/opportunities":
+            try:
+                payload = crm_read.list_opportunities()
+            except crm_read.CrmReadError as exc:
+                body = json.dumps({"error": str(exc)}).encode("utf-8")
+                self._send(body, "application/json", status=exc.status_code)
+            else:
+                body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self._send(body, "application/json")
         elif self.path == "/api/compare/history":
             runs = compare_history.load_runs(load_settings().home)
             self._send(json.dumps(_compare_history_response(runs)).encode(), "application/json")

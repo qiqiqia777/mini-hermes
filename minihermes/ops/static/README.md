@@ -24,12 +24,15 @@ runs the bootstrap and must load last**.
 | `diagram.js` | `archSVG` (the architecture chart) **and** its live animation (`STAGE`/`hot`/`pollEvents`) |
 | `views.js`   | subtab/db helpers, SQL console, Memory/Tools sub-views, the `VIEWS` router object |
 | `compare.js` | the Model arena (`Compare` tab) — race one message through several models at once |
+| `crm.js`     | read-only Odoo opportunity list and selection |
 | `dock.js`    | chat sessions/history (`loadThreadInto`), model chip, stats toggle |
 | `main.js`    | `render`/`refresh` loop, resizers, voice, and the bootstrap (**loads last**) |
 
 Data flows one way: `refresh()` (main.js) fetches `/api/data` into the global
-`D`, then `render()` writes `VIEWS[hash](D)` into `#view`. Every mutation
-(`applyModel`, `pinModel`, `saveFact`, …) calls `refresh()` when it's done.
+`D`, then `render()` writes `VIEWS[hash](D)` into `#view`. The CRM view loads
+`/api/crm/opportunities` only when opened; its Odoo records stay outside the
+dashboard poll and global `D`. Every mutation (`applyModel`, `pinModel`,
+`saveFact`, …) calls `refresh()` when it's done.
 
 ## Rules that bite (read before editing)
 

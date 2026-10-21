@@ -3,7 +3,7 @@
 // step, no modules). Load order + rules: static/README.md.
 
 let activeView = null, activeSub = null;
-const TITLES = {chat:"Chat & watch", ops:"LLM Ops",
+const TITLES = {chat:"Chat & watch", ops:"LLM Ops", crm:"CRM",
                 database:"Database — everything MiniHermes stores (state.db)"};
 function render(){
   if (!D) return;

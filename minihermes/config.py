@@ -56,6 +56,11 @@ class Settings:
     # Telegram session) resends its whole history every turn until it explodes.
     history_turns: int = field(default_factory=lambda: int(os.getenv("MINIHERMES_HISTORY_TURNS", "12")))
 
+    # --- CRM read-only integration. Credentials stay in the backend environment.
+    odoo_url: str = field(default_factory=lambda: os.getenv("ODOO_URL", ""))
+    odoo_api_key: str = field(default_factory=lambda: os.getenv("ODOO_API_KEY", ""))
+    odoo_database: str = field(default_factory=lambda: os.getenv("ODOO_DATABASE", ""))
+
     # --- Memory
     # Consolidate (distill chats into durable facts) only after N new exchanges.
     consolidate_every: int = field(default_factory=lambda: int(os.getenv("MINIHERMES_CONSOLIDATE_EVERY", "6")))

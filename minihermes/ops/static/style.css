@@ -181,6 +181,23 @@
   .toolcard{border:1px solid var(--line);border-radius:8px;padding:10px 13px;margin-bottom:8px;background:var(--panel)}
   .toolcard .tn{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink)}
   .toolcard .td{color:var(--ink2);font-size:12px;margin-top:3px}
+  .crm-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:4px 0 16px}
+  .crm-toolbar h2{margin:0 0 4px}
+  .crm-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.8fr);gap:14px;align-items:start}
+  .crm-list{display:grid;gap:8px;align-content:start}
+  .crm-opportunity{display:block;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--line);
+    border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;cursor:pointer}
+  .crm-opportunity:hover,.crm-opportunity.selected{border-color:var(--accent)}
+  .crm-opportunity.selected{box-shadow:0 0 0 1px var(--accent-soft)}
+  .crm-opportunity-name{display:block;font-weight:600;margin-bottom:6px}
+  .crm-opportunity-meta{display:block;color:var(--ink2);font-size:12px;margin-top:3px}
+  .crm-detail{position:sticky;top:14px}
+  .crm-detail-card h2{margin:8px 0 16px}
+  .crm-detail-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:13px}
+  .crm-detail-row span{color:var(--ink2)}
+  .crm-detail-row b{text-align:right}
+  .crm-error .save{margin-top:12px}
+  @media(max-width:850px){.crm-layout{grid-template-columns:1fr}.crm-detail{position:static}}
   .srcpill{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
            padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-left:8px;vertical-align:middle}
   .srcpill.mcp{background:var(--good-soft);color:var(--good)}
