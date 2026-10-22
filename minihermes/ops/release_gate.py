@@ -29,7 +29,8 @@ def run(suite: str) -> tuple[int, dict]:
     print(f"\n=== {suite} ===")
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", str(REPO / "evals" / suite)],
-        cwd=REPO, capture_output=True, text=True,
+        cwd=REPO, capture_output=True, text=True, encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
     )
     print(proc.stdout, end="")
     print(proc.stderr, end="", file=sys.stderr)

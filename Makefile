@@ -47,4 +47,4 @@ shootout-coding: ## coding round via pi, scored by tests: make shootout-coding R
 	$(PY) scripts/shootout.py $(RUNS) --coding
 
 lint:
-	$(PY) -m ruff check minihermes evals
+	$(PY) -m ruff check --config pyproject.toml minihermes evals

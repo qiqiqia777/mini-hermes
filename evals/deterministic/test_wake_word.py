@@ -10,7 +10,8 @@ SHOULD_WAKE = [
     ("MiniHermes, minihermes!", "minihermes minihermes"),            # punctuation
     ("minihermesminihermes", "minihermes minihermes"),               # whisper drops the space
     ("so anyway minihermes minihermes schedule it", "minihermes minihermes"),  # embedded in speech
-    ("walku minihermes", "minihermes minihermes"),             # one-letter mangle → fuzzy match
+    ("minihermez minihermes", "minihermes minihermes"),        # one-letter mangle → fuzzy match
+    ("walku waku", "waku waku"),                             # original customizable phrase
     ("Hey MiniHermes", "hey minihermes"),
     ("hey computer, what's up", "hey computer"),
     # regression from the first live session: whisper wrote the wake word in
@@ -26,6 +27,7 @@ SHOULD_NOT_WAKE = [
     ("", "minihermes minihermes"),
     ("minihermes minihermes", ""),                        # no wake word configured
     ("walk to work", "minihermes minihermes"),
+    ("walku minihermes", "minihermes minihermes"),            # mixed old/new names are not a typo
 ]
 
 

@@ -1,8 +1,8 @@
 # Issue 01 live verification — 2026-10-22
 
-The CRM workspace now reads real Odoo opportunities. The user confirmed manual
-QA on 2026-10-22. Issue 01 remains open for the repository's release gates.
-No push was made.
+The CRM workspace reads real Odoo opportunities. The user confirmed manual QA
+on 2026-10-22. Local release gates now pass after the closeout below; the
+historical failures are retained here for traceability.
 
 ## Live environment
 
@@ -48,7 +48,7 @@ The integration performs only search_read; no model calls or business mutations.
 Independent review of ce25e54 and a follow-up review of this fix found no confirmed
 P1/P2 defects. The reviewer independently reran the 15 focused tests.
 
-## Validation and remaining gates
+## Validation before closeout
 
 - `.venv/Scripts/python.exe -X utf8 -m pytest -q evals/deterministic/test_crm_read.py evals/deterministic/test_static_assets.py`: 15 passed.
 - Ruff on the new CRM module: passed. All static JavaScript `node --check`: passed.
@@ -64,3 +64,34 @@ P1/P2 defects. The reviewer independently reran the 15 focused tests.
   acceptance without claiming any previously unrun checks were executed.
 - Real empty-result browser state: not run; mocked empty-result coverage exists.
 - Publish: blocked by the existing gates; Issue 02 has not started.
+
+## Release closeout — 2026-10-22
+
+The user authorized resolving the existing gate blockers and shipping Issue 01.
+The CRM behavior accepted in manual QA is unchanged.
+
+- Coding eval fixtures now use a no-op Python script and the current interpreter
+  instead of Unix-only `true`/`python3`. Both the stub and verification remain
+  real subprocesses. The wrong-code case must fail with `AssertionError`.
+- The renamed wake-word fixture now represents a one-letter typo; the original
+  custom phrase and a negative mixed-name case are covered. Matching logic and
+  the 0.7 threshold are unchanged.
+- Release-gate child output and parent decoding explicitly use UTF-8. A real
+  nested-pytest regression failed with the original UnicodeDecodeError/TypeError
+  under a forced GBK child encoding, then passed after the fix.
+- The untracked root `ruff.toml` is an Odoo runbot configuration and remains
+  untouched. Makefile and CI now explicitly select this project's pyproject.toml.
+  That file fixes the original E4/E7/E9/F rule set, following the
+  [official Ruff migration guidance](https://astral.sh/blog/ruff-v0.16.0).
+  Newer Ruff defaults are no longer silently imposed; no blanket ignores or
+  broad source rewrites were added.
+- Full local gate: **204 passed, 11 skipped**, exit 0. Judge skipped under the
+  existing rule because no active model API key is configured; no model called.
+- Full project lint with `--config pyproject.toml`: passed on Ruff 0.17.1.
+  `scripts/validate_skills.py`: passed (2 skills).
+- Independent clean-context closeout review found no confirmed defects and
+  independently reran the 27 targeted tests and full configured lint.
+- Live CRM HTTP endpoint rechecked: 200. No service restart or database mutation
+  was needed for closeout. Original untracked files and runtime data remain.
+- Real empty-result browser check remains unrun; mocked contract coverage exists.
+  Issue 02 has not started. Remote checks are listed in repository Actions.

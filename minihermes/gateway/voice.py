@@ -157,7 +157,7 @@ def matches_wake(text: str, wake_word: str) -> bool:
     """Does a transcript contain the (customizable) wake word?
 
     Fuzzy on purpose: Whisper hears "minihermes minihermes" as "minihermesminihermes", "MiniHermes, minihermes!",
-    "walku minihermes" — or transcribes it as Japanese kana わくわく (the first live
+    "minihermez minihermes" — or transcribes it as Japanese kana わくわく (the first live
     test!). So: `wake_word` accepts comma-separated variants across scripts
     ("minihermes minihermes,わくわく"), normalization keeps kana AND CJK, and matching is
     substring + sliding-window similarity. Pure function → deterministic evals.
