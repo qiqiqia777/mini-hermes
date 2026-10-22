@@ -1,7 +1,8 @@
 # Issue 01 live verification — 2026-10-22
 
-The CRM workspace now reads real Odoo opportunities. Issue 01 remains open for
-the user's manual QA and the repository's release gates. No push was made.
+The CRM workspace now reads real Odoo opportunities. The user confirmed manual
+QA on 2026-10-22. Issue 01 remains open for the repository's release gates.
+No push was made.
 
 ## Live environment
 
@@ -58,6 +59,8 @@ P1/P2 defects. The reviewer independently reran the 15 focused tests.
   executable on Windows; the old `walku minihermes` wake-word fixture scores
   0.595 against a 0.7 threshold. These files were not changed for this CRM slice.
 - Full repository Ruff: 396 findings; no broad automatic fixes applied.
-- User manual comparison in Odoo and the workspace: pending.
+- User manual QA: accepted on 2026-10-22. After receiving the manual verification
+  checklist, the user explicitly replied "人工验收通过". This records the user's
+  acceptance without claiming any previously unrun checks were executed.
 - Real empty-result browser state: not run; mocked empty-result coverage exists.
 - Publish: blocked by the existing gates; Issue 02 has not started.
