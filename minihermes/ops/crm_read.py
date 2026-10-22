@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 from minihermes.config import load_settings
 
-OPPORTUNITY_FIELDS = ["id", "name", "commercial_partner_id", "stage_id"]
+OPPORTUNITY_FIELDS = ["id", "name", "commercial_partner_id", "partner_id", "stage_id"]
 OPPORTUNITY_LIMIT = 50
 REQUEST_TIMEOUT_SECONDS = 10
 
@@ -45,7 +45,9 @@ def map_opportunity(record: dict) -> dict:
         "id": record["id"],
         "name": str(record["name"] or ""),
         "customer_name": _related_name(
-            record.get("commercial_partner_id"), "commercial partner",
+            # Odoo 19 only sets commercial_partner_id when the company differs
+            # from partner_id (for example, a contact belonging to that company).
+            record.get("commercial_partner_id") or record.get("partner_id"), "customer",
         ),
         "stage_name": _related_name(record.get("stage_id"), "stage"),
     }

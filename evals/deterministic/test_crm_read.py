@@ -71,6 +71,20 @@ def test_maps_opportunity_without_customer_or_stage():
     }
 
 
+def test_maps_direct_company_customer_when_commercial_partner_is_false():
+    # Odoo 19 leaves commercial_partner_id false when partner_id IS the company.
+    record = {**RECORD, "commercial_partner_id": False,
+              "partner_id": [208, "华东办公设备集团"]}
+
+    assert crm_read.map_opportunity(record)["customer_name"] == "华东办公设备集团"
+
+
+def test_prefers_company_over_contact_customer():
+    record = {**RECORD, "partner_id": [209, "陈经理"]}
+
+    assert crm_read.map_opportunity(record)["customer_name"] == "华东办公设备集团"
+
+
 def test_maps_empty_json2_result():
     assert crm_read.map_opportunities_response([]) == {"opportunities": []}
 
@@ -117,7 +131,7 @@ def test_list_opportunities_calls_json2_search_read_and_maps_records():
     assert headers["content-type"] == "application/json"
     assert headers["x-odoo-database"] == "crm_demo"
     assert body["domain"] == [["type", "=", "opportunity"]]
-    assert body["fields"] == ["id", "name", "commercial_partner_id", "stage_id"]
+    assert body["fields"] == ["id", "name", "commercial_partner_id", "partner_id", "stage_id"]
     assert body["limit"] == 50
     assert captured["timeout"] == 10
     assert result == {
