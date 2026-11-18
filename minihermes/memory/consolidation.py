@@ -12,10 +12,12 @@ A cheap model reads the unconsolidated chat log and produces:
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from datetime import date
 
 import anthropic
 
+from minihermes.loop.models import record_generation
 from minihermes.memory.episodic.store import SqliteEpisodeStore
 from minihermes.memory.semantic.store import SqliteFactStore
 
@@ -41,6 +43,8 @@ def consolidate_if_due(
     every_n: int,
     facts: SqliteFactStore,
     episodes: SqliteEpisodeStore,
+    *,
+    observe_span=None,
 ) -> int:
     """Returns how many new facts were written (0 = not due or nothing worth keeping)."""
     rows = conn.execute(
@@ -51,13 +55,19 @@ def consolidate_if_due(
 
     log = "\n".join(f"{r['role']}: {r['content']}" for r in rows)
     try:
-        response = client.messages.create(
-            model=small_model,
-            max_tokens=600,
-            messages=[{"role": "user", "content": SUMMARIZER_PROMPT.format(log=log)}],
-        )
-        text = "".join(b.text for b in response.content if b.type == "text")
-        distilled = json.loads(text[text.index("{") : text.rindex("}") + 1])
+        observation = observe_span("memory-consolidation", "generation") if observe_span else nullcontext({})
+        with observation as fields:
+            fields["model.name"] = small_model
+            fields["input"] = {"chat_records": len(rows)}
+            response = client.messages.create(
+                model=small_model,
+                max_tokens=600,
+                messages=[{"role": "user", "content": SUMMARIZER_PROMPT.format(log=log)}],
+            )
+            if observe_span:
+                record_generation(fields, response)
+            text = "".join(b.text for b in response.content if b.type == "text")
+            distilled = json.loads(text[text.index("{") : text.rindex("}") + 1])
     except Exception:
         return 0  # never lose the log — it stays unconsolidated for next time
 

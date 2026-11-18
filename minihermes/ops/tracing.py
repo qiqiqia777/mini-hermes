@@ -13,8 +13,8 @@ Two outputs from the same events:
        phoenix serve                                # localhost:6006
        OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 python -m minihermes
 
-   Langfuse cloud speaks OTel too — point the endpoint + auth headers there
-   instead. The instrumentation below doesn't know or care which.
+3. Langfuse, when MINIHERMES_LANGFUSE_TRACING=1: an independent OTLP/HTTP
+   exporter sends structured observations with content omitted.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from minihermes.config import Settings
+from minihermes.ops.langfuse import LangfuseTracing
 
 
 def _now() -> str:
@@ -62,6 +63,7 @@ class Tracer:
         self.settings = settings
         self.path = settings.home / "traces" / f"{datetime.now().strftime('%Y-%m-%d')}.jsonl"
         self._otel_tracer = self._init_otel(settings)
+        self.langfuse = LangfuseTracing.from_env()
         self._span_ctx = None
         self._trace_encoding_checked = False
 
@@ -157,6 +159,22 @@ class Tracer:
             # flush per turn: the trace should survive even a killed process
             self._otel_provider.force_flush(timeout_millis=2000)
 
+    @contextmanager
+    def langfuse_turn(self, session_id: str, source: str, message: str):
+        backend = self.langfuse
+        if backend is None:
+            yield {}
+            return
+        try:
+            with backend.turn(self.settings.home, session_id, source, message) as fields:
+                yield fields
+        finally:
+            # The root must finish before the batch is flushed, including on failure.
+            backend.provider.force_flush(timeout_millis=2000)
+
+    def close(self) -> None:
+        if self.langfuse is not None:
+            self.langfuse.provider.shutdown()
 
 def compose(*observers) -> callable:
     """Fan one loop event out to several observers (gateway display + tracer)."""

@@ -12,6 +12,7 @@ Plus the two agents that manage them:
 from __future__ import annotations
 
 import sqlite3
+from contextlib import nullcontext
 from pathlib import Path
 
 import anthropic
@@ -27,13 +28,14 @@ REPO_SKILLS = Path(__file__).resolve().parents[2] / "skills"
 
 class Memory:
     def __init__(self, conn: sqlite3.Connection, settings: Settings, client: anthropic.Anthropic,
-                 episode_store=None):
+                 episode_store=None, *, observe_span=None):
         # episode_store: inject an already-built store (the dashboard caches ONE
         # NotionEpisodeStore process-wide — its constructor hits the network,
         # so building one per Memory would re-query Notion on every poll).
         self.conn = conn
         self.settings = settings
         self.client = client
+        self.observe_span = observe_span
         self.facts = self._make_fact_store(conn, settings)
         self.episodes = episode_store if episode_store is not None else self._make_episode_store(conn, settings)
         self.skills = SkillLoader([REPO_SKILLS, settings.home / "skills"])
@@ -56,15 +58,22 @@ class Memory:
 
     # ---- retrieval (gated — see retrieval_gate.py for why)
     def gated_retrieve(self, message: str, notify=None) -> str:
-        retrieve, query, reason = retrieval_gate.should_retrieve(
-            self.client, self.settings.small_model, message
-        )
+        span = self.observe_span or (lambda name, kind: nullcontext({}))
+        with span("memory-gate", "guardrail") as fields:
+            retrieve, query, reason = retrieval_gate.should_retrieve(
+                self.client, self.settings.small_model, message, observe_span=self.observe_span,
+            )
+            fields["output"] = {"retrieve": retrieve}
+            if reason.startswith("gate failed open (") or reason == "gate returned no JSON — failing open":
+                fields["level"] = "WARNING"
         if notify:
             notify("gate", {"decision": "retrieve" if retrieve else "skip", "reason": reason})
         if not retrieve:
             return ""
-        found = self.facts.search(query, self.settings.retrieval_top_k)
-        found += self.episodes.search(query, top_k=3)
+        with span("memory-search", "retriever") as fields:
+            found = self.facts.search(query, self.settings.retrieval_top_k)
+            found += self.episodes.search(query, top_k=3)
+            fields["output"] = {"matches": len(found)}
         return "\n".join(found)
 
     # ---- procedural
@@ -164,6 +173,7 @@ class Memory:
             self.settings.consolidate_every,
             self.facts,
             self.episodes,
+            observe_span=self.observe_span,
         )
         if new_facts and notify:
             notify("consolidation", {"new_facts": new_facts})

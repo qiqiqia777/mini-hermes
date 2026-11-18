@@ -16,8 +16,11 @@ a small model making one narrow decision.
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 
 import anthropic
+
+from minihermes.loop.models import record_generation
 
 GATE_PROMPT = """\
 You are a retrieval gate for a personal assistant's long-term memory.
@@ -34,18 +37,22 @@ User message: {message}"""
 
 
 def should_retrieve(
-    client: anthropic.Anthropic, small_model: str, message: str
+    client: anthropic.Anthropic, small_model: str, message: str, *, observe_span=None
 ) -> tuple[bool, str, str]:
     """Returns (retrieve?, search_query, reason). Fails open: if the gate
     itself errors, we retrieve — a stale memory beats a lost one."""
     try:
-        response = client.messages.create(
-            model=small_model,
-            # generous budget: reasoning models (Kimi K3, ...) spend a thinking
-            # block BEFORE the JSON — 100 tokens was truncating the answer away
-            max_tokens=600,
-            messages=[{"role": "user", "content": GATE_PROMPT.format(message=message)}],
-        )
+        observation = observe_span("memory-gate-model", "generation") if observe_span else nullcontext({})
+        with observation as fields:
+            fields["model.name"] = small_model
+            response = client.messages.create(
+                model=small_model,
+                # reasoning models may spend tokens before producing JSON
+                max_tokens=600,
+                messages=[{"role": "user", "content": GATE_PROMPT.format(message=message)}],
+            )
+            if observe_span:
+                record_generation(fields, response)
         text = "".join(b.text for b in response.content if b.type == "text")
         if "{" not in text:   # a reasoning-only / truncated reply, not an error
             return True, message, "gate returned no JSON — failing open"

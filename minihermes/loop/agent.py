@@ -17,11 +17,13 @@ End-loop guardrails (the orange box's exit conditions):
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import anthropic
 
+from minihermes.loop.models import record_generation
 from minihermes.tools.registry import ToolRegistry
 
 # Observers let the gateway show tool calls live and let ops/tracing record
@@ -37,6 +39,11 @@ class LoopResult:
     iterations: int = 0
 
 
+def tool_status(output: str) -> str:
+    text = (output or "").lower()
+    return "error" if text.startswith("error") or "failed" in text or "timed out" in text else "ok"
+
+
 def run_loop(
     client: anthropic.Anthropic,
     model: str,
@@ -47,6 +54,7 @@ def run_loop(
     max_tokens: int = 2048,
     observer: Observer | None = None,
     stream: bool = False,
+    observe_span=None,
 ) -> LoopResult:
     """Run one agent turn. `messages` is mutated in place — after the call it
     contains the full working memory of the turn (assistant thoughts, tool
@@ -56,6 +64,7 @@ def run_loop(
     {"delta": ...})) so a gateway can show it appear token by token — used by
     the dashboard. Falls back to a single call for clients without streaming."""
     notify = observer or (lambda kind, ev: None)
+    span = observe_span or (lambda name, kind: nullcontext({}))
     result = LoopResult(reply="")
     can_stream = stream and hasattr(client.messages, "stream")
 
@@ -63,26 +72,36 @@ def run_loop(
         result.iterations = iteration
 
         # ---- reason: one LLM call with the current working memory
+        request_fields = {"model.name": model, "model.parameters": {"max_tokens": max_tokens},
+                          "input": {"iteration": iteration, "message_count": len(messages)}}
         response = None
         if can_stream:
             try:
-                with client.messages.stream(
-                    model=model, system=system, messages=messages,
-                    tools=tools.schemas(), max_tokens=max_tokens,
-                ) as s:
-                    for delta in s.text_stream:
-                        notify("text", {"delta": delta})
-                    response = s.get_final_message()
+                with span("model-stream", "generation") as fields:
+                    fields.update(request_fields)
+                    with client.messages.stream(
+                        model=model, system=system, messages=messages,
+                        tools=tools.schemas(), max_tokens=max_tokens,
+                    ) as s:
+                        for delta in s.text_stream:
+                            notify("text", {"delta": delta})
+                        response = s.get_final_message()
+                    if observe_span:
+                        record_generation(fields, response)
             except Exception:
                 response = None  # any streaming hiccup → fall back to one call
         if response is None:
-            response = client.messages.create(
-                model=model,
-                system=system,
-                messages=messages,
-                tools=tools.schemas(),
-                max_tokens=max_tokens,
-            )
+            with span("model-request", "generation") as fields:
+                fields.update(request_fields)
+                response = client.messages.create(
+                    model=model,
+                    system=system,
+                    messages=messages,
+                    tools=tools.schemas(),
+                    max_tokens=max_tokens,
+                )
+                if observe_span:
+                    record_generation(fields, response)
         notify("llm", {"iteration": iteration, "stop_reason": response.stop_reason,
                        "usage": {"in": response.usage.input_tokens, "out": response.usage.output_tokens}})
 
@@ -99,7 +118,16 @@ def run_loop(
         # ---- act: execute each requested tool; observe: feed results back
         tool_results = []
         for call in tool_uses:
-            output = tools.execute(call.name, call.input)
+            # An unknown name came from model output and may contain user text.
+            name = call.name if observe_span and tools.contains(call.name) else "unknown-tool"
+            with span(name, "tool") as fields:
+                output = tools.execute(call.name, call.input)
+                if observe_span:
+                    fields["input"] = {"argument_count": len(call.input)}
+                    status = tool_status(output)
+                    fields["output"] = {"status": status}
+                    if status == "error":
+                        fields["level"] = "ERROR"
             event = {"tool": call.name, "args": call.input, "output": output}
             result.tool_calls.append(event)
             notify("tool", event)

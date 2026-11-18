@@ -139,6 +139,16 @@ def get_client(settings: Settings):
     return OpenAICompatClient(api_key=api_key, base_url=base_url, timeout=timeout)
 
 
+def record_generation(fields: dict, response) -> None:
+    """Record provider-reported values shared by both response formats."""
+    if model := getattr(response, "model", None):
+        fields["model.name"] = model
+    if (usage := getattr(response, "usage", None)) is not None:
+        counts = {"input": getattr(usage, "input_tokens", None),
+                  "output": getattr(usage, "output_tokens", None)}
+        fields["usage_details"] = {key: count for key, count in counts.items() if count is not None}
+
+
 class OpenAICompatClient:
     """Speaks the Anthropic Messages shape the loop expects, backed by an
     OpenAI-style chat.completions API. ~60 lines is the entire difference
@@ -239,6 +249,7 @@ class OpenAICompatClient:
             ))
         usage = getattr(response, "usage", None)
         return SimpleNamespace(
+            model=getattr(response, "model", None),
             stop_reason="tool_use" if choice.tool_calls else "end_turn",
             usage=SimpleNamespace(
                 input_tokens=getattr(usage, "prompt_tokens", 0),
@@ -267,6 +278,7 @@ class _OpenAIStream:
         self._text: list[str] = []
         self._tools: dict[int, dict] = {}   # index → {id, name, args}
         self._usage = None
+        self._model = None
 
     def __enter__(self):
         return self
@@ -279,6 +291,7 @@ class _OpenAIStream:
         stream = self._client._call(
             self._kwargs, stream=True, stream_options={"include_usage": True})
         for chunk in stream:
+            self._model = getattr(chunk, "model", None) or self._model
             if getattr(chunk, "usage", None):
                 self._usage = chunk.usage
             if not chunk.choices:
@@ -307,6 +320,7 @@ class _OpenAIStream:
                 input=json.loads(slot["args"] or "{}")))
         usage = self._usage
         return SimpleNamespace(
+            model=self._model,
             stop_reason="tool_use" if self._tools else "end_turn",
             usage=SimpleNamespace(
                 input_tokens=getattr(usage, "prompt_tokens", 0),

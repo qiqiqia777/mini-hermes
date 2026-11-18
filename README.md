@@ -262,7 +262,27 @@ make trace                                            # Phoenix at localhost:600
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 make run
 ```
 
-Langfuse cloud speaks the same OTel toggle.
+### Langfuse tracing
+
+Install the same `tracing` extra, then set these variables in `.env` and restart MiniHermes.
+Use the base URL for your Langfuse project's region or self-hosted instance and the project
+keys from **Settings → API Keys**.
+
+```dotenv
+MINIHERMES_LANGFUSE_TRACING=1
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_TRACING_ENVIRONMENT=local
+```
+
+Send a chat message and look for `minihermes-chat-turn` in Langfuse. Each trace includes
+timed model generations, tool calls, and memory operations, with token usage where the
+provider reports it. A hashed local session identifier groups turns in **Sessions**.
+Langfuse receives operational metadata such as message lengths, model and tool names, and
+outcomes. Message text, prompts, tool arguments and results, memory contents, and exception
+messages stay out of this exporter. Local JSONL tracing and Phoenix retain their own settings.
+See [Langfuse's OpenTelemetry guide](https://langfuse.com/integrations/native/opentelemetry).
 
 ## Recording a clean demo
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from minihermes.config import Settings, load_settings
 from minihermes.db import connect
-from minihermes.loop.agent import LoopResult, Observer, run_loop
+from minihermes.loop.agent import LoopResult, Observer, run_loop, tool_status
 from minihermes.loop.models import get_client
 from minihermes.ops.tracing import Tracer, compose
 from minihermes.runtime.session import Session
@@ -27,17 +27,21 @@ class MiniHermes:
         # Memory first: the memory-management tools need it.
         from minihermes.memory import Memory
 
-        self.memory = Memory(self.conn, self.settings, self.client)
+        self.tracer = Tracer(self.settings)
+        self.observe_span = self.tracer.langfuse.span if self.tracer.langfuse else None
+        self.memory = Memory(self.conn, self.settings, self.client, observe_span=self.observe_span)
         self.tools = build_registry(self.conn, self.settings, self.memory)
         self.mcp_bridge = getattr(self.tools, "mcp_bridge", None)
         self.session = Session(self.settings, memory=self.memory)
-        self.tracer = Tracer(self.settings)
 
     def close(self) -> None:
         """Release external resources (MCP subprocesses). Called when the
         dashboard rebuilds the agent after a settings change."""
-        if self.mcp_bridge is not None:
-            self.mcp_bridge.close()
+        try:
+            if self.mcp_bridge is not None:
+                self.mcp_bridge.close()
+        finally:
+            self.tracer.close()
 
     def respond(self, user_message: str, observer: Observer | None = None,
                 source: str = "cli", stream: bool = False) -> LoopResult:
@@ -57,7 +61,10 @@ class MiniHermes:
         notify = compose(observer, self.tracer.event, _capture)
         t0 = time.perf_counter()
 
-        with self.tracer.turn(user_message):
+        with (
+            self.tracer.turn(user_message),
+            self.tracer.langfuse_turn(self.session.session_id, source, user_message) as fields,
+        ):
             system = self.session.build_system(user_message, notify=notify)
             # Working memory is a bounded window: only the last N turns (2 rows
             # each) enter the prompt, so context/cost/latency stay flat no matter
@@ -76,17 +83,14 @@ class MiniHermes:
                 max_tokens=self.settings.max_tokens,
                 observer=notify,
                 stream=stream,
+                observe_span=self.observe_span,
             )
 
-            def _status(out: str) -> str:
-                low = (out or "").lower()
-                return "error" if ("failed" in low or "timed out" in low
-                                   or low.startswith("error")) else "ok"
             meta = {
                 "gate": captured.get("gate"),
                 "iterations": result.iterations,
                 "latency_ms": int((time.perf_counter() - t0) * 1000),
-                "tools": [{"tool": c["tool"], "status": _status(c["output"])}
+                "tools": [{"tool": c["tool"], "status": tool_status(c["output"])}
                           for c in result.tool_calls],
                 # which brain answered this turn — so a reopened thread (or a
                 # thread you switched models mid-way) shows it per card.
@@ -98,6 +102,9 @@ class MiniHermes:
             if self.memory is not None:
                 self.memory.maybe_consolidate(notify=notify)
                 self.memory.export_markdown()   # keep MEMORY.md in sync
+
+            fields["output"] = {"reply_chars": len(result.reply), "iterations": result.iterations,
+                                "tool_calls": len(result.tool_calls)}
 
         self.tracer.end_turn(result.reply, result.iterations)
         return result
